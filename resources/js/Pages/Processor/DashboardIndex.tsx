@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import ProcessorLayouts from '@/Layouts/ProcessorLayouts';
 import {
     ArrowRight,
@@ -54,13 +54,15 @@ export default function DashboardIndex() {
                                     </p>
                                 </div>
 
-                                <button
-                                    type="button"
+                                <Link
+                                    href={route(
+                                        'processors.agri-resources.my-demands.create',
+                                    )}
                                     className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#f2bd11] px-5 text-sm font-bold text-[#03592f] shadow-md shadow-black/10 transition hover:bg-[#ffd04a] focus:outline-none focus:ring-4 focus:ring-[#f2bd11]/30 sm:w-auto"
                                 >
                                     <PackageSearch className="h-5 w-5" />
                                     I'm looking for
-                                </button>
+                                </Link>
                             </div>
                         </div>
 
