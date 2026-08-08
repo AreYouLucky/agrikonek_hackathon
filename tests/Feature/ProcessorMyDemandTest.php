@@ -7,6 +7,7 @@ use App\Models\ProcessorProfile;
 use App\Models\ProcessorProfileTransaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class ProcessorMyDemandTest extends TestCase
@@ -47,6 +48,54 @@ class ProcessorMyDemandTest extends TestCase
             ->assertJsonPath('0.quantity', 120.5)
             ->assertJsonPath('0.price', 45.75)
             ->assertJsonPath('0.remarks', 'For sauce production');
+    }
+
+    public function test_processor_dashboard_is_wired_to_profile_and_demand_data(): void
+    {
+        [$processor, $processorProfile] = $this->createProcessor();
+        [$otherProcessor, $otherProcessorProfile] = $this->createProcessor();
+        $tomato = AgriResource::query()->create(['name' => 'Tomato']);
+        $squash = AgriResource::query()->create(['name' => 'Squash']);
+
+        ProcessorProfileTransaction::query()->create([
+            'user_id' => $processor->getKey(),
+            'processor_profile_id' => $processorProfile->getKey(),
+            'agri_resource_id' => $tomato->getKey(),
+            'quantity' => 120,
+            'price' => 40,
+            'remarks' => 'For sauce production',
+        ]);
+
+        ProcessorProfileTransaction::query()->create([
+            'user_id' => $processor->getKey(),
+            'processor_profile_id' => $processorProfile->getKey(),
+            'agri_resource_id' => $squash->getKey(),
+            'quantity' => 80,
+            'price' => 30,
+            'remarks' => 'For soup packs',
+        ]);
+
+        ProcessorProfileTransaction::query()->create([
+            'user_id' => $otherProcessor->getKey(),
+            'processor_profile_id' => $otherProcessorProfile->getKey(),
+            'agri_resource_id' => $squash->getKey(),
+            'quantity' => 999,
+            'price' => 1,
+            'remarks' => 'Other processor record',
+        ]);
+
+        $response = $this->actingAs($processor)
+            ->get(route('processors.dashboard'));
+
+        $response->assertOk()->assertInertia(fn (Assert $page): Assert => $page
+            ->component('Processor/DashboardIndex')
+            ->where('processorProfile.business_name', $processorProfile->business_name)
+            ->where('stats.total_demands', 2)
+            ->where('stats.total_quantity', 200)
+            ->where('stats.average_price', 35)
+            ->has('recentDemands', 2)
+            ->where('recentDemands.0.resource', 'Squash')
+            ->where('recentDemands.1.resource', 'Tomato'));
     }
 
     /** @return array{User, ProcessorProfile} */
