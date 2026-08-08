@@ -18,4 +18,6 @@ Route::middleware(['auth', 'role:farmer'])->group(function () {
         ->name('farmer.transactions');
     Route::post('/farmer/transactions/{transaction}/read', [FarmerTransactionController::class, 'read'])
         ->name('farmer.transactions.read');
+    Route::patch('/farmer/transactions/{transaction}/price', [FarmerTransactionController::class, 'updatePrice'])
+        ->name('farmer.transactions.price.update');
 });

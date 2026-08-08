@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Processor\DashboardController;
 use App\Http\Controllers\Processor\MyDemandController;
+use App\Http\Controllers\Processor\ProcessorTransactionController;
 use App\Http\Controllers\Processor\SmartDemandController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -32,11 +33,9 @@ Route::prefix('processors')->middleware(['auth', 'role:processor'])->group(funct
     Route::get('/agri-resources/my-demands/create', [MyDemandController::class, 'create'])->name('processors.agri-resources.my-demands.create');
     Route::post('/agri-resources/my-demands', [MyDemandController::class, 'store'])->name('processors.agri-resources.my-demands.store');
 
-
     Route::get('/smart-demands', [SmartDemandController::class, 'index'])->name('processors.smart-demands');
-
-
-    // Route::get('/agri-resources', function () {
-    //     return Inertia::render('Processor/SearchAgriResources');
-    // })->name('agri-resources');
+    Route::get('/transactions', [ProcessorTransactionController::class, 'index'])->name('processors.transactions');
+    Route::post('/transactions/listings/{resourceListing}', [ProcessorTransactionController::class, 'start'])->name('processors.transactions.start');
+    Route::post('/transactions/{transaction}/read', [ProcessorTransactionController::class, 'read'])->name('processors.transactions.read');
+    Route::post('/transactions/{transaction}/purchase', [ProcessorTransactionController::class, 'purchase'])->name('processors.transactions.purchase');
 });

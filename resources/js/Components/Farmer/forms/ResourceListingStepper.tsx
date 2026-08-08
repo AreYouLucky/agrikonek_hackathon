@@ -243,11 +243,6 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                 harvested_at: form.harvested_at,
                 preservation_method: form.preservation_method,
                 price: Number(form.price),
-                farmer_location: priceRecommendation?.farmer_location ?? null,
-                market_area: priceRecommendation?.market_area ?? null,
-                market_average: priceRecommendation?.average_price ?? null,
-                market_minimum: priceRecommendation?.minimum_price ?? null,
-                market_maximum: priceRecommendation?.maximum_price ?? null,
             });
 
             if (!isResourcePriceAnalysis(result)) {
@@ -343,10 +338,8 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             onSuccess: () => {
                 reset();
                 setImagePreview(null);
-                setPriceRecommendation(null);
                 setPriceAnalysis(null);
                 setPriceAnalysisError(null);
-                requestedResourceId.current = null;
                 setCurrentStep(1);
             },
         });
@@ -663,46 +656,6 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                             description="Enter the price per kilogram, then review the resource listing."
                         >
                             <div className="space-y-7">
-                                {isLoadingPrice && (
-                                    <div
-                                        role="status"
-                                        className="animate-pulse rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-xl bg-emerald-200" />
-                                            <div className="flex-1 space-y-2">
-                                                <div className="h-3 w-32 rounded bg-emerald-200" />
-                                                <div className="h-4 w-52 max-w-full rounded bg-emerald-100" />
-                                            </div>
-                                        </div>
-                                        <p className="mt-4 text-sm font-medium text-emerald-800">
-                                            Matching prices with your farm location…
-                                        </p>
-                                    </div>
-                                )}
-
-                                {priceRecommendation && (
-                                    <PriceRecommendationCard
-                                        recommendation={priceRecommendation}
-                                        onUsePrice={(price) => {
-                                            updateField(
-                                                'price',
-                                                price.toString(),
-                                            );
-                                            clearPriceAnalysis();
-                                        }}
-                                    />
-                                )}
-
-                                {priceRecommendationError && (
-                                    <div
-                                        role="alert"
-                                        className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
-                                    >
-                                        {priceRecommendationError}
-                                    </div>
-                                )}
-
                                 <div>
                                     <label className="mb-2 block text-sm font-semibold text-gray-700">
                                         Price per kilogram
@@ -1215,185 +1168,11 @@ function PriceAnalysisCard({
     );
 }
 
-function PriceRecommendationCard({
-    recommendation,
-    onUsePrice,
-}: {
-    recommendation: PriceRecommendation;
-    onUsePrice: (price: number) => void;
-}): ReactElement {
-    const recommendedPrice = recommendation.recommended_price;
-    const minimumPrice = recommendation.minimum_price;
-    const maximumPrice = recommendation.maximum_price;
-    const hasPrice =
-        recommendedPrice !== null &&
-        minimumPrice !== null &&
-        maximumPrice !== null;
-    const isLocationMatch =
-        recommendation.match_type === 'nearest_location' ||
-        recommendation.match_type === 'location_match';
-
-    return (
-        <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">
-            <div className="p-5">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#03592f] text-white shadow-sm">
-                            <Sparkles size={19} />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-bold text-[#03592f]">
-                                AI market price guide
-                            </p>
-                            <p className="mt-0.5 text-xs text-gray-500">
-                                Matched with verified market prices
-                            </p>
-                        </div>
-                    </div>
-
-                    {hasPrice && (
-                        <span
-                            className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                                isLocationMatch
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-amber-100 text-amber-800'
-                            }`}
-                        >
-                            {isLocationMatch
-                                ? 'Location matched'
-                                : 'Regional fallback'}
-                        </span>
-                    )}
-                </div>
-
-                <div className="mt-4 flex items-start gap-2 rounded-xl bg-white/80 p-3 text-sm text-gray-700 ring-1 ring-emerald-100">
-                    <MapPin
-                        className="mt-0.5 shrink-0 text-[#6ab225]"
-                        size={17}
-                    />
-                    <p className="leading-5">
-                        <span className="font-semibold text-gray-900">
-                            Based on your location:
-                        </span>{' '}
-                        {recommendation.farmer_location}
-                    </p>
-                </div>
-
-                {hasPrice ? (
-                    <>
-                        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Suggested price
-                                </p>
-                                <p className="mt-1 text-3xl font-extrabold text-[#03592f]">
-                                    ₱{formatPrice(recommendedPrice)}
-                                    <span className="ml-1 text-sm font-semibold text-gray-500">
-                                        / kg
-                                    </span>
-                                </p>
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={() => onUsePrice(recommendedPrice)}
-                                className="rounded-xl bg-[#6ab225] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#5d9e20] focus:outline-none focus:ring-4 focus:ring-[#6ab225]/25"
-                            >
-                                Use suggested price
-                            </button>
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                            <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
-                                <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500">
-                                    <TrendingUp size={14} />
-                                    Market range
-                                </p>
-                                <p className="mt-1 text-sm font-bold text-gray-800">
-                                    ₱{formatPrice(minimumPrice)}–₱
-                                    {formatPrice(maximumPrice)}
-                                </p>
-                            </div>
-                            <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
-                                <p className="text-xs font-semibold text-gray-500">
-                                    Market average
-                                </p>
-                                <p className="mt-1 text-sm font-bold text-gray-800">
-                                    {recommendation.average_price !== null
-                                        ? `₱${formatPrice(recommendation.average_price)}`
-                                        : 'Unavailable'}
-                                </p>
-                            </div>
-                            <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
-                                <p className="text-xs font-semibold text-gray-500">
-                                    Market basis
-                                </p>
-                                <p className="mt-1 truncate text-sm font-bold text-gray-800">
-                                    {recommendation.market_area ?? 'Available markets'}
-                                </p>
-                                <p className="mt-0.5 text-[11px] text-gray-400">
-                                    {recommendation.market_count} market prices
-                                </p>
-                            </div>
-                        </div>
-                    </>
-                ) : (
-                    <p className="mt-4 text-sm leading-6 text-amber-800">
-                        {recommendation.message}
-                    </p>
-                )}
-
-                {hasPrice && (
-                    <p className="mt-4 text-xs leading-5 text-gray-500">
-                        {recommendation.message} Use this as a guide; you can
-                        still enter your own price.
-                    </p>
-                )}
-            </div>
-        </div>
-    );
-}
-
 function formatPrice(value: number): string {
     return value.toLocaleString('en-PH', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     });
-}
-
-function isPriceRecommendation(value: unknown): value is PriceRecommendation {
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        'recommended_price' in value &&
-        (typeof value.recommended_price === 'number' ||
-            value.recommended_price === null) &&
-        'average_price' in value &&
-        (typeof value.average_price === 'number' ||
-            value.average_price === null) &&
-        'minimum_price' in value &&
-        (typeof value.minimum_price === 'number' ||
-            value.minimum_price === null) &&
-        'maximum_price' in value &&
-        (typeof value.maximum_price === 'number' ||
-            value.maximum_price === null) &&
-        'farmer_location' in value &&
-        typeof value.farmer_location === 'string' &&
-        'market_area' in value &&
-        (typeof value.market_area === 'string' || value.market_area === null) &&
-        'market_count' in value &&
-        typeof value.market_count === 'number' &&
-        'match_type' in value &&
-        typeof value.match_type === 'string' &&
-        [
-            'nearest_location',
-            'location_match',
-            'regional_fallback',
-            'no_market_data',
-        ].includes(value.match_type) &&
-        'message' in value &&
-        typeof value.message === 'string'
-    );
 }
 
 function isResourcePriceAnalysis(value: unknown): value is ResourcePriceAnalysis {

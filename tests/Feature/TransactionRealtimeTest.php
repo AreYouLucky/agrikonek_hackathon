@@ -24,7 +24,7 @@ class TransactionRealtimeTest extends TestCase
         [$owner, $transaction] = $this->createTransaction();
         Event::fake([TransactionMessageSent::class]);
 
-        $response = $this->actingAs($owner)->postJson('/api/transactions/messages', [
+        $response = $this->actingAs($owner)->postJson(route('transactions.messages.store'), [
             'transaction_id' => $transaction->getKey(),
             'message' => 'Sample message',
         ], [
@@ -49,7 +49,7 @@ class TransactionRealtimeTest extends TestCase
             fn (TransactionMessageSent $event): bool => $event->transactionId === $transaction->getKey()
                 && $event->message === 'Sample message'
                 && $event->senderId === $owner->getKey()
-                && $event->broadcastOn()[0]->name === 'private-transaction.'.$transaction->getKey()
+                && $event->broadcastOn()[0]->name === 'transaction.'.$transaction->getKey()
                 && $event->broadcastAs() === 'transaction-message-sent'
                 && $event->socket === '123.456',
         );
@@ -86,12 +86,12 @@ class TransactionRealtimeTest extends TestCase
 
         Event::assertDispatched(
             TransactionAlert::class,
-            fn (TransactionAlert $event): bool => $event->broadcastOn()[0]->name === 'private-transaction.'.$transaction->getKey()
+            fn (TransactionAlert $event): bool => $event->broadcastOn()[0]->name === 'transaction.'.$transaction->getKey()
                 && $event->broadcastAs() === 'transaction-alert',
         );
         Event::assertDispatched(
             TransactionPinged::class,
-            fn (TransactionPinged $event): bool => $event->broadcastOn()[0]->name === 'private-transaction-ping.'.$transaction->getKey()
+            fn (TransactionPinged $event): bool => $event->broadcastOn()[0]->name === 'transaction-ping.'.$transaction->getKey()
                 && $event->broadcastAs() === 'transaction-pinged'
                 && $event->socket === '789.123',
         );

@@ -1,11 +1,11 @@
 import ProcessorLayouts from '@/Layouts/ProcessorLayouts';
 import { Head, Link } from '@inertiajs/react';
 import {
-    ArrowRight,
     CalendarDays,
     Filter,
     Leaf,
     MapPin,
+    MessageCircle,
     PackageSearch,
     PhilippinePeso,
     Search,
@@ -344,12 +344,15 @@ export default function SmartDemandIndex({
 
                                                     <Link
                                                         href={route(
-                                                            'processors.agri-resources.my-demands.create',
+                                                            'processors.transactions.start',
+                                                            listing.id,
                                                         )}
+                                                        method="post"
+                                                        as="button"
                                                         className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#03592f] px-4 text-sm font-bold text-white transition hover:bg-[#024525] focus:outline-none focus:ring-4 focus:ring-[#6ab225]/25"
                                                     >
-                                                        Create demand
-                                                        <ArrowRight className="h-4 w-4" />
+                                                        <MessageCircle className="h-4 w-4" />
+                                                        Message farmer
                                                     </Link>
                                                 </div>
 

@@ -45,8 +45,8 @@ export function useTransactionChannel(
 
         const transactionChannelName = `transaction.${transactionId}`;
         const pingChannelName = `transaction-ping.${transactionId}`;
-        const transactionChannel = echo.private(transactionChannelName);
-        const pingChannel = echo.private(pingChannelName);
+        const transactionChannel = echo.channel(transactionChannelName);
+        const pingChannel = echo.channel(pingChannelName);
 
         const handleMessage = (data: unknown): void => {
             if (isTransactionMessage(data)) {

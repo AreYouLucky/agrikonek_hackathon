@@ -18,7 +18,7 @@ export async function sendMessage(
     message: string,
 ): Promise<TransactionMessage> {
     const response = await axios.post<TransactionMessage>(
-        '/api/transactions/messages',
+        '/transactions/messages',
         {
             transaction_id: transactionId,
             message,

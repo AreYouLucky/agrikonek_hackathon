@@ -20,6 +20,15 @@ class FarmerTransactionPageTest extends TestCase
     {
         [$farmer, $transaction] = $this->createTransaction('Rice Straw');
         [, $otherTransaction] = $this->createTransaction('Corn Cobs');
+        $unmatchedResource = AgriResource::query()->create(['name' => 'Rice Bran']);
+        $unmatchedListing = ResourceListing::query()->create([
+            'farmer_profile_id' => $farmer->farmerProfile()->value('id'),
+            'agri_resource_id' => $unmatchedResource->getKey(),
+            'quantity' => 35,
+            'havested_at' => now(),
+            'preservation_method' => 'sun_dried',
+            'price' => 18,
+        ]);
         $transaction->messages()->create([
             'sender_id' => $transaction->processorProfile->user_id,
             'message' => 'Can I collect this tomorrow?',
@@ -33,9 +42,21 @@ class FarmerTransactionPageTest extends TestCase
         $response->assertOk()->assertInertia(fn (Assert $page): Assert => $page
             ->component('Farmer/Transactions')
             ->where('currentUserId', $farmer->getKey())
+            ->has('listings', 2)
+            ->where('listings.0.id', $unmatchedListing->getKey())
+            ->where('listings.0.resource_name', 'Rice Bran')
+            ->where('listings.0.transactions_count', 0)
+            ->where('listings.1.id', $transaction->resource_listing_id)
+            ->where('listings.1.transactions_count', 1)
             ->has('transactions', 1)
             ->where('transactions.0.id', $transaction->getKey())
             ->where('transactions.0.listing.resource_name', 'Rice Straw')
+            ->where('transactions.0.listing.quantity', 20)
+            ->where('transactions.0.listing.preservation_method', 'dried')
+            ->where('transactions.0.listing.estimated_price', 23.5)
+            ->where('transactions.0.listing.fresh_until', now()->addDays(5)->toDateString())
+            ->where('transactions.0.listing.freshness_status', 'fresh')
+            ->where('transactions.0.listing.ai_analysis_message', 'Listing remains usable and is fairly priced.')
             ->where('selectedMessages.0.message', 'Can I collect this tomorrow?'));
 
         $this->assertNotSame($transaction->getKey(), $otherTransaction->getKey());
@@ -75,6 +96,50 @@ class FarmerTransactionPageTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_farmer_can_update_the_chat_transaction_price(): void
+    {
+        [$farmer, $transaction] = $this->createTransaction('Rice Hulls');
+
+        $this->actingAs($farmer)
+            ->patch(route('farmer.transactions.price.update', $transaction), [
+                'price' => 31.50,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(31.5, $transaction->fresh()->price);
+        $this->assertSame('price_updated', $transaction->fresh()->status);
+    }
+
+    public function test_farmer_cannot_update_another_farmers_transaction_price(): void
+    {
+        [, $transaction] = $this->createTransaction('Rice Hulls');
+        [$otherFarmer] = $this->createTransaction('Coffee Husks');
+
+        $this->actingAs($otherFarmer)
+            ->patch(route('farmer.transactions.price.update', $transaction), [
+                'price' => 31.50,
+            ])
+            ->assertForbidden();
+
+        $this->assertSame(25.0, $transaction->fresh()->price);
+    }
+
+    public function test_farmer_cannot_change_price_after_purchase(): void
+    {
+        [$farmer, $transaction] = $this->createTransaction('Cassava Peels');
+        $transaction->update(['status' => 'purchased']);
+
+        $this->actingAs($farmer)
+            ->from(route('farmer.transactions', ['transaction' => $transaction]))
+            ->patch(route('farmer.transactions.price.update', $transaction), [
+                'price' => 31.50,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('price');
+
+        $this->assertSame(25.0, $transaction->fresh()->price);
+    }
+
     /** @return array{User, Transaction} */
     private function createTransaction(string $resourceName): array
     {
@@ -93,6 +158,11 @@ class FarmerTransactionPageTest extends TestCase
             'havested_at' => now(),
             'preservation_method' => 'dried',
             'price' => 25,
+            'img' => 'resource-listings/sample.jpg',
+            'estimated_price' => 23.5,
+            'fresh_until' => now()->addDays(5),
+            'freshness_status' => 'fresh',
+            'ai_analysis_message' => 'Listing remains usable and is fairly priced.',
         ]);
         $processorUser = User::factory()->create(['role' => 'processor']);
         $processor = ProcessorProfile::query()->create([

@@ -25,6 +25,7 @@ class ModelRelationshipTest extends TestCase
         $this->assertInstanceOf(HasMany::class, (new FarmerProfile)->resourceListings());
         $this->assertInstanceOf(BelongsTo::class, (new ResourceListing)->farmerProfile());
         $this->assertInstanceOf(BelongsTo::class, (new ResourceListing)->agriResource());
+        $this->assertInstanceOf(HasMany::class, (new ResourceListing)->transactions());
         $this->assertInstanceOf(HasMany::class, (new AgriResource)->resourceListings());
         $this->assertInstanceOf(HasMany::class, (new AgriResource)->marketPrices());
         $this->assertInstanceOf(HasMany::class, (new AgriResource)->processorDemands());

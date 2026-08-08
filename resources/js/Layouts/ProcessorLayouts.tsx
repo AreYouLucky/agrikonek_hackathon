@@ -5,6 +5,7 @@ import {
     ListChecks,
     LogOut,
     Menu,
+    MessagesSquare,
     PackageSearch,
     X,
 } from 'lucide-react';
@@ -32,6 +33,12 @@ const navigation = [
         href: route('processors.smart-demands'),
         icon: PackageSearch,
         match: '/processors/smart-demands',
+    },
+    {
+        label: 'Messages',
+        href: route('processors.transactions'),
+        icon: MessagesSquare,
+        match: '/processors/transactions',
     },
     {
         label: 'About Us',

@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Controllers\Farmer;
+namespace App\Http\Controllers\Processor;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Farmer\ReadTransactionMessagesRequest;
-use App\Http\Requests\Farmer\UpdateTransactionPriceRequest;
+use App\Http\Requests\Processor\PurchaseTransactionRequest;
+use App\Http\Requests\Processor\ReadTransactionMessagesRequest;
 use App\Models\ResourceListing;
 use App\Models\Transaction;
 use App\Models\User;
@@ -15,42 +15,21 @@ use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class FarmerTransactionController extends Controller
+class ProcessorTransactionController extends Controller
 {
     public function index(Request $request): Response
     {
         /** @var User $user */
         $user = $request->user();
-        $farmerProfileId = $user->farmerProfile()->value('id');
-
-        $listings = ResourceListing::query()
-            ->where('farmer_profile_id', $farmerProfileId)
-            ->select([
-                'id',
-                'agri_resource_id',
-                'quantity',
-                'havested_at',
-                'preservation_method',
-                'price',
-                'img',
-                'estimated_price',
-                'fresh_until',
-                'freshness_status',
-                'ai_analysis_message',
-                'created_at',
-            ])
-            ->with('agriResource:id,name')
-            ->withCount('transactions')
-            ->latest('id')
-            ->get();
+        $processorProfile = $user->processorProfile()->firstOrFail();
 
         $transactions = Transaction::query()
-            ->whereHas('resourceListing', fn ($query) => $query
-                ->where('farmer_profile_id', $farmerProfileId))
+            ->where('processor_profile_id', $processorProfile->getKey())
             ->with([
-                'processorProfile:id,business_name,business_type,complete_address',
-                'resourceListing:id,agri_resource_id,quantity,havested_at,preservation_method,price,img,estimated_price,fresh_until,freshness_status,ai_analysis_message',
+                'resourceListing:id,farmer_profile_id,agri_resource_id,quantity,havested_at,preservation_method,price,img,fresh_until,freshness_status',
                 'resourceListing.agriResource:id,name',
+                'resourceListing.farmerProfile:id,user_id,farm_name,farm_complete_address',
+                'resourceListing.farmerProfile.user:id,name',
             ])
             ->withCount(['messages as unread_messages_count' => fn ($query) => $query
                 ->where('sender_id', '!=', $user->getKey())
@@ -80,23 +59,8 @@ class FarmerTransactionController extends Controller
                 ->values()
             : collect();
 
-        return Inertia::render('Farmer/Transactions', [
+        return Inertia::render('Processor/SearchAgriResources', [
             'currentUserId' => $user->getKey(),
-            'listings' => $listings->map(fn (ResourceListing $listing): array => [
-                'id' => $listing->getKey(),
-                'resource_name' => $listing->agriResource->name,
-                'quantity' => $listing->quantity,
-                'price' => $listing->price,
-                'img' => $listing->img,
-                'harvested_at' => $listing->havested_at->toDateString(),
-                'preservation_method' => $listing->preservation_method,
-                'estimated_price' => $listing->estimated_price,
-                'fresh_until' => $listing->fresh_until?->toDateString(),
-                'freshness_status' => $listing->freshness_status,
-                'ai_analysis_message' => $listing->ai_analysis_message,
-                'created_at' => $listing->created_at->toIso8601String(),
-                'transactions_count' => $listing->transactions_count,
-            ])->values(),
             'transactions' => $transactions->map(fn (Transaction $transaction): array => [
                 'id' => $transaction->getKey(),
                 'status' => $transaction->status,
@@ -104,10 +68,10 @@ class FarmerTransactionController extends Controller
                 'price' => $transaction->price,
                 'updated_at' => $transaction->updated_at->toIso8601String(),
                 'unread_messages_count' => $transaction->unread_messages_count,
-                'processor' => [
-                    'business_name' => $transaction->processorProfile->business_name,
-                    'business_type' => $transaction->processorProfile->business_type,
-                    'complete_address' => $transaction->processorProfile->complete_address,
+                'farmer' => [
+                    'name' => $transaction->resourceListing->farmerProfile->user->name,
+                    'farm_name' => $transaction->resourceListing->farmerProfile->farm_name,
+                    'complete_address' => $transaction->resourceListing->farmerProfile->farm_complete_address,
                 ],
                 'listing' => [
                     'id' => $transaction->resourceListing->getKey(),
@@ -117,14 +81,35 @@ class FarmerTransactionController extends Controller
                     'img' => $transaction->resourceListing->img,
                     'harvested_at' => $transaction->resourceListing->havested_at->toDateString(),
                     'preservation_method' => $transaction->resourceListing->preservation_method,
-                    'estimated_price' => $transaction->resourceListing->estimated_price,
                     'fresh_until' => $transaction->resourceListing->fresh_until?->toDateString(),
                     'freshness_status' => $transaction->resourceListing->freshness_status,
-                    'ai_analysis_message' => $transaction->resourceListing->ai_analysis_message,
                 ],
             ])->values(),
             'selectedTransactionId' => $selectedTransaction?->getKey(),
             'selectedMessages' => $selectedMessages,
+        ]);
+    }
+
+    public function start(Request $request, ResourceListing $resourceListing): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $processorProfile = $user->processorProfile()->firstOrFail();
+
+        $transaction = Transaction::query()->firstOrCreate(
+            [
+                'processor_profile_id' => $processorProfile->getKey(),
+                'resource_listing_id' => $resourceListing->getKey(),
+            ],
+            [
+                'quantity' => $resourceListing->quantity,
+                'price' => $resourceListing->price,
+                'status' => 'pending',
+            ],
+        );
+
+        return redirect()->route('processors.transactions', [
+            'transaction' => $transaction->getKey(),
         ]);
     }
 
@@ -140,20 +125,19 @@ class FarmerTransactionController extends Controller
         return response()->noContent();
     }
 
-    public function updatePrice(
-        UpdateTransactionPriceRequest $request,
+    public function purchase(
+        PurchaseTransactionRequest $request,
         Transaction $transaction,
     ): RedirectResponse {
-        if ($transaction->status === 'purchased') {
+        if ($transaction->price === null || $transaction->price <= 0) {
             throw ValidationException::withMessages([
-                'price' => 'The price can no longer be changed after purchase.',
+                'purchase' => 'Ask the farmer to set a transaction price before buying.',
             ]);
         }
 
-        $transaction->update([
-            'price' => $request->validated('price'),
-            'status' => 'price_updated',
-        ]);
+        if ($transaction->status !== 'purchased') {
+            $transaction->update(['status' => 'purchased']);
+        }
 
         return back();
     }
