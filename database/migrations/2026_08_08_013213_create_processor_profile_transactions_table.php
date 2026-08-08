@@ -13,14 +13,12 @@ return new class extends Migration
     {
         Schema::create('processor_profile_transactions', function (Blueprint $table) {
             $table->id();
-            $table->integer('processor_profile_id');
-            $table->foreignId('processor_profile_id')->constrained('processor_profiles')->onDelete('cascade');
 
-            $table->integer('agri_resource_id');
+            $table->foreignId('processor_profile_id')->constrained('processor_profiles')->onDelete('cascade');
             $table->foreignId('agri_resource_id')->constrained('agri_resources')->onDelete('cascade');
 
-            $table->double('quantity')->default(0);
-            $table->double('price')->default(0);
+            $table->double('quantity', 8, 2)->default(0);
+            $table->double('price', 8, 2)->default(0);
             $table->text('remarks')->nullable();
 
             $table->timestamps();
