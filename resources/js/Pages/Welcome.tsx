@@ -3,6 +3,6 @@ import MessageBox from '@/Components/Transaction/MessageBox';
 
 export default function Welcome() {
   return (
-    <div><MessageBox transactionId={1} /></div>
+    <div>'test here I am working'</div>
   )
 }
