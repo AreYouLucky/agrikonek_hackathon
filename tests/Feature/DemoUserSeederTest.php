@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\FarmerProfile;
 use App\Models\ProcessorProfileTransaction;
+use App\Models\ResourceListing;
 use App\Models\User;
 use Database\Seeders\AgriResourceSeeder;
 use Database\Seeders\DemoUserSeeder;
@@ -24,8 +26,24 @@ class DemoUserSeederTest extends TestCase
             ->where('role', 'processor')
             ->with('processorProfile')
             ->get();
+        $farmers = User::query()
+            ->where('role', 'farmer')
+            ->with('farmerProfile')
+            ->get();
 
         $this->assertCount(7, $processors);
+        $this->assertCount(3, $farmers);
+
+        foreach ($farmers as $farmer) {
+            $this->assertNotNull($farmer->farmerProfile);
+
+            $this->assertGreaterThanOrEqual(
+                2,
+                ResourceListing::query()
+                    ->where('farmer_profile_id', $farmer->farmerProfile->getKey())
+                    ->count(),
+            );
+        }
 
         foreach ($processors as $processor) {
             $this->assertNotNull($processor->processorProfile);
@@ -40,5 +58,7 @@ class DemoUserSeederTest extends TestCase
         }
 
         $this->assertSame(15, ProcessorProfileTransaction::query()->count());
+        $this->assertSame(3, FarmerProfile::query()->count());
+        $this->assertSame(6, ResourceListing::query()->count());
     }
 }

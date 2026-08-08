@@ -6,8 +6,10 @@ use App\Models\AgriResource;
 use App\Models\FarmerProfile;
 use App\Models\ProcessorProfile;
 use App\Models\ProcessorProfileTransaction;
+use App\Models\ResourceListing;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 
 class DemoUserSeeder extends Seeder
@@ -20,26 +22,138 @@ class DemoUserSeeder extends Seeder
         $password = Hash::make('aaaaaaaa');
         $resourceIds = AgriResource::query()->pluck('id', 'name');
 
-        $farmer = User::query()->updateOrCreate(
-            ['email' => 'farmer@agrikonek.test'],
+        $farmers = [
             [
+                'email' => 'farmer@agrikonek.test',
                 'name' => 'Demo Farmer',
-                'email_verified_at' => now(),
-                'password' => $password,
-                'role' => 'farmer',
-            ],
-        );
-
-        FarmerProfile::query()->updateOrCreate(
-            ['user_id' => $farmer->id],
-            [
                 'farm_name' => 'Demo Sustainable Farm',
                 'farm_complete_address' => 'Barangay Demo, Philippines',
                 'latitude' => '14.5995',
                 'longitude' => '120.9842',
                 'contact_number' => '09171234567',
+                'listings' => [
+                    [
+                        'resource' => 'Tomato',
+                        'quantity' => 180,
+                        'harvested_at' => now()->subHours(8),
+                        'preservation_method' => 'Fresh crates',
+                        'price' => 35,
+                        'estimated_price' => 38,
+                        'fresh_until' => now()->addDays(3),
+                        'freshness_status' => 'Fresh',
+                        'ai_analysis_message' => 'Good for sauce processing or same-week market resale.',
+                    ],
+                    [
+                        'resource' => 'Squash',
+                        'quantity' => 120,
+                        'harvested_at' => now()->subDay(),
+                        'preservation_method' => 'Cleaned and sorted',
+                        'price' => 24,
+                        'estimated_price' => 28,
+                        'fresh_until' => now()->addDays(8),
+                        'freshness_status' => 'Stable',
+                        'ai_analysis_message' => 'Suitable for puree, soup packs, and livestock feed recovery if overstocked.',
+                    ],
+                ],
             ],
-        );
+            [
+                'email' => 'farmer.ana@agrikonek.test',
+                'name' => 'Ana Reyes',
+                'farm_name' => 'Reyes Highland Vegetables',
+                'farm_complete_address' => 'La Trinidad, Benguet, Philippines',
+                'latitude' => '16.4556',
+                'longitude' => '120.5878',
+                'contact_number' => '09171234580',
+                'listings' => [
+                    [
+                        'resource' => 'Carrots',
+                        'quantity' => 95,
+                        'harvested_at' => now()->subHours(12),
+                        'preservation_method' => 'Washed and packed',
+                        'price' => 62,
+                        'estimated_price' => 68,
+                        'fresh_until' => now()->addDays(6),
+                        'freshness_status' => 'Fresh',
+                        'ai_analysis_message' => 'Strong match for processors making frozen vegetable mixes.',
+                    ],
+                    [
+                        'resource' => 'Pechay (Baguio)',
+                        'quantity' => 70,
+                        'harvested_at' => now()->subHours(5),
+                        'preservation_method' => 'Bundled and shaded',
+                        'price' => 42,
+                        'estimated_price' => 48,
+                        'fresh_until' => now()->addDays(2),
+                        'freshness_status' => 'Very fresh',
+                        'ai_analysis_message' => 'Best moved quickly to processors needing leafy vegetable packs.',
+                    ],
+                ],
+            ],
+            [
+                'email' => 'farmer.mang-ben@agrikonek.test',
+                'name' => 'Benjamin Cruz',
+                'farm_name' => 'Cruz Lowland Produce Farm',
+                'farm_complete_address' => 'San Jose City, Nueva Ecija, Philippines',
+                'latitude' => '15.7901',
+                'longitude' => '120.9919',
+                'contact_number' => '09171234581',
+                'listings' => [
+                    [
+                        'resource' => 'Red Onion',
+                        'quantity' => 150,
+                        'harvested_at' => now()->subDays(2),
+                        'preservation_method' => 'Cured and netted sacks',
+                        'price' => 72,
+                        'estimated_price' => 80,
+                        'fresh_until' => now()->addDays(20),
+                        'freshness_status' => 'Cured',
+                        'ai_analysis_message' => 'Good candidate for pickling, dehydration, and seasoning processors.',
+                    ],
+                    [
+                        'resource' => 'Eggplant',
+                        'quantity' => 110,
+                        'harvested_at' => now()->subHours(10),
+                        'preservation_method' => 'Ventilated baskets',
+                        'price' => 30,
+                        'estimated_price' => 35,
+                        'fresh_until' => now()->addDays(3),
+                        'freshness_status' => 'Fresh',
+                        'ai_analysis_message' => 'Can be matched with processors making vegetable mixes or preserved products.',
+                    ],
+                ],
+            ],
+        ];
+
+        foreach ($farmers as $farmerData) {
+            $farmer = User::query()->updateOrCreate(
+                ['email' => $farmerData['email']],
+                [
+                    'name' => $farmerData['name'],
+                    'email_verified_at' => now(),
+                    'password' => $password,
+                    'role' => 'farmer',
+                ],
+            );
+
+            FarmerProfile::query()->updateOrCreate(
+                ['user_id' => $farmer->id],
+                [
+                    'farm_name' => $farmerData['farm_name'],
+                    'farm_complete_address' => $farmerData['farm_complete_address'],
+                    'latitude' => $farmerData['latitude'],
+                    'longitude' => $farmerData['longitude'],
+                    'contact_number' => $farmerData['contact_number'],
+                ],
+            );
+
+            $farmerProfile = $farmer->farmerProfile()->firstOrFail();
+
+            $this->seedFarmerResourceListings(
+                $farmerProfile,
+                $resourceIds,
+                $farmerData['listings'],
+            );
+        }
 
         $processor = User::query()->updateOrCreate(
             ['email' => 'processor@agrikonek.test'],
@@ -305,6 +419,41 @@ class DemoUserSeeder extends Seeder
                     'quantity' => $demand['quantity'],
                     'price' => $demand['price'],
                     'remarks' => $demand['remarks'],
+                ],
+            );
+        }
+    }
+
+    /**
+     * @param  array<string, int>  $resourceIds
+     * @param  array<int, array{resource: string, quantity: float|int, harvested_at: Carbon, preservation_method: string, price: float|int, estimated_price: float|int, fresh_until: Carbon, freshness_status: string, ai_analysis_message: string}>  $listings
+     */
+    private function seedFarmerResourceListings(
+        FarmerProfile $farmerProfile,
+        $resourceIds,
+        array $listings,
+    ): void {
+        foreach ($listings as $listing) {
+            $resourceId = $resourceIds[$listing['resource']] ?? null;
+
+            if ($resourceId === null) {
+                continue;
+            }
+
+            ResourceListing::query()->updateOrCreate(
+                [
+                    'farmer_profile_id' => $farmerProfile->id,
+                    'agri_resource_id' => $resourceId,
+                ],
+                [
+                    'quantity' => $listing['quantity'],
+                    'havested_at' => $listing['harvested_at'],
+                    'preservation_method' => $listing['preservation_method'],
+                    'price' => $listing['price'],
+                    'estimated_price' => $listing['estimated_price'],
+                    'fresh_until' => $listing['fresh_until'],
+                    'freshness_status' => $listing['freshness_status'],
+                    'ai_analysis_message' => $listing['ai_analysis_message'],
                 ],
             );
         }
