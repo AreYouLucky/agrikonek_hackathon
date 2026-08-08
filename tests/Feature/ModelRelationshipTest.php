@@ -6,6 +6,7 @@ use App\Models\AgriResource;
 use App\Models\FarmerProfile;
 use App\Models\MarketPrice;
 use App\Models\Message;
+use App\Models\ProcessorProfile;
 use App\Models\ProcessorProfileTransaction;
 use App\Models\ResourceListing;
 use App\Models\Transaction;
@@ -25,15 +26,18 @@ class ModelRelationshipTest extends TestCase
         $this->assertInstanceOf(BelongsTo::class, (new ResourceListing)->farmerProfile());
         $this->assertInstanceOf(BelongsTo::class, (new ResourceListing)->agriResource());
         $this->assertInstanceOf(HasMany::class, (new AgriResource)->resourceListings());
-        $this->assertInstanceOf(HasMany::class, (new AgriResource)->transactions());
         $this->assertInstanceOf(HasMany::class, (new AgriResource)->marketPrices());
-        $this->assertInstanceOf(BelongsTo::class, (new Transaction)->agriResource());
+        $this->assertInstanceOf(HasMany::class, (new AgriResource)->processorDemands());
+        $this->assertInstanceOf(BelongsTo::class, (new Transaction)->resourceListing());
+        $this->assertInstanceOf(BelongsTo::class, (new Transaction)->processorProfile());
         $this->assertInstanceOf(HasMany::class, (new Transaction)->messages());
         $this->assertInstanceOf(BelongsTo::class, (new MarketPrice)->agriResource());
         $this->assertInstanceOf(BelongsTo::class, (new Message)->transaction());
         $this->assertInstanceOf(BelongsTo::class, (new Message)->sender());
         $this->assertInstanceOf(BelongsTo::class, (new ProcessorProfileTransaction)->user());
+        $this->assertInstanceOf(BelongsTo::class, (new ProcessorProfileTransaction)->processorProfile());
         $this->assertInstanceOf(BelongsTo::class, (new ProcessorProfileTransaction)->agriResource());
+        $this->assertInstanceOf(HasMany::class, (new ProcessorProfile)->resourceDemands());
     }
 
     public function test_models_cast_schema_values_to_their_expected_types(): void

@@ -17,13 +17,13 @@ class AgriResource extends Model
         return $this->hasMany(ResourceListing::class);
     }
 
-    public function transactions(): HasMany
-    {
-        return $this->hasMany(Transaction::class);
-    }
-
     public function marketPrices(): HasMany
     {
         return $this->hasMany(MarketPrice::class);
+    }
+
+    public function processorDemands(): HasMany
+    {
+        return $this->hasMany(ProcessorProfileTransaction::class);
     }
 }

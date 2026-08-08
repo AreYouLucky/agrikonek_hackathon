@@ -12,4 +12,5 @@ Route::middleware('auth:sanctum')->prefix('transactions')->group(function (): vo
 Route::post('/ai/chat', [OpenAIController::class, 'chat'])
     ->name('ai.chat');
 Route::post('/ai/analyze-crop-price', [OpenAIController::class, 'analyzeCropPrice'])
+    ->middleware('auth:sanctum')
     ->name('ai.analyze-crop-price');

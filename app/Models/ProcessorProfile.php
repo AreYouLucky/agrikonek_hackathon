@@ -27,4 +27,9 @@ class ProcessorProfile extends Model
     {
         return $this->hasMany(Transaction::class);
     }
+
+    public function resourceDemands(): HasMany
+    {
+        return $this->hasMany(ProcessorProfileTransaction::class);
+    }
 }

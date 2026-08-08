@@ -37,7 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 'farmer' => route('create-agri-resource-listing'),
                 'processor' => route('processors.dashboard'),
 
-                default => route('login'),
+                default => route('/'),
             };
         });
     })

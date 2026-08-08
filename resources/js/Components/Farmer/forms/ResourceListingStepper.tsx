@@ -1,3 +1,8 @@
+import {
+    requestResourceBuyerSuggestions,
+    requestResourcePriceAnalysis,
+    requestResourcePriceRecommendation,
+} from '@/services/farmerResourceListing';
 import { useForm } from '@inertiajs/react';
 import {
     ArrowLeft,
@@ -60,6 +65,18 @@ type PriceRecommendation = {
     message: string;
 };
 
+type ResourcePriceAnalysis = {
+    estimated_price: number | null;
+    fresh_until: string | null;
+    freshness_status:
+        | 'fresh'
+        | 'aging'
+        | 'near_spoilage'
+        | 'spoiled'
+        | null;
+    message: string | null;
+};
+
 type ProcessorSuggestion = {
     id: number;
     business_name: string;
@@ -67,8 +84,8 @@ type ProcessorSuggestion = {
     complete_address: string;
     contact_number: string;
     distance_km: number | null;
-    has_bought_resource: boolean;
-    matching_transactions_count: number;
+    is_resource_match: boolean;
+    matching_demand_count: number;
 };
 
 type BuyerSuggestionResponse = {
@@ -146,6 +163,12 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
     const [priceRecommendationError, setPriceRecommendationError] = useState<
         string | null
     >(null);
+    const [priceAnalysis, setPriceAnalysis] =
+        useState<ResourcePriceAnalysis | null>(null);
+    const [isAnalyzingPrice, setIsAnalyzingPrice] = useState(false);
+    const [priceAnalysisError, setPriceAnalysisError] = useState<string | null>(
+        null,
+    );
     const requestedResourceId = useRef<number | null>(null);
     const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
     const [buyerSuggestions, setBuyerSuggestions] =
@@ -191,43 +214,17 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             return;
         }
 
-        const csrfToken = document.querySelector<HTMLMetaElement>(
-            'meta[name="csrf-token"]',
-        )?.content;
-
-        if (!csrfToken) {
-            setPriceRecommendationError(
-                'The market recommendation could not be requested. Please enter a price manually.',
-            );
-            return;
-        }
-
         const abortController = new AbortController();
         requestedResourceId.current = selectedResource.id;
         setPriceRecommendation(null);
         setPriceRecommendationError(null);
         setIsLoadingPrice(true);
 
-        void fetch(route('farmer.resource-price-recommendation'), {
-            method: 'POST',
-            credentials: 'same-origin',
-            signal: abortController.signal,
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-            },
-            body: JSON.stringify({
-                agri_resource_id: selectedResource.id,
-            }),
-        })
-            .then(async (response) => {
-                if (!response.ok) {
-                    throw new Error('Price recommendation request failed.');
-                }
-
-                const result: unknown = await response.json();
-
+        void requestResourcePriceRecommendation(
+            selectedResource.id,
+            abortController.signal,
+        )
+            .then((result: unknown) => {
                 if (!isPriceRecommendation(result)) {
                     throw new Error('Invalid price recommendation response.');
                 }
@@ -235,7 +232,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                 setPriceRecommendation(result);
             })
             .catch((error: unknown) => {
-                if (error instanceof DOMException && error.name === 'AbortError') {
+                if (abortController.signal.aborted) {
                     requestedResourceId.current = null;
                     return;
                 }
@@ -262,33 +259,8 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
         setBuyerSuggestionError(null);
         setIsLoadingBuyers(true);
 
-        const csrfToken = document.querySelector<HTMLMetaElement>(
-            'meta[name="csrf-token"]',
-        )?.content;
-
-        if (!csrfToken) {
-            setBuyerSuggestionError('Nearby processor suggestions are unavailable right now.');
-            setIsLoadingBuyers(false);
-            return;
-        }
-
         try {
-            const response = await fetch(route('farmer.resource-buyer-suggestions'), {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify({ agri_resource_id: resource.id }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Buyer suggestion request failed.');
-            }
-
-            const result: unknown = await response.json();
+            const result: unknown = await requestResourceBuyerSuggestions(resource.id);
 
             if (!isBuyerSuggestionResponse(result)) {
                 throw new Error('Invalid buyer suggestion response.');
@@ -299,6 +271,50 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             setBuyerSuggestionError('Nearby processor suggestions are unavailable right now.');
         } finally {
             setIsLoadingBuyers(false);
+        }
+    };
+
+    const analyzePrice = async (): Promise<void> => {
+        if (
+            !selectedResource ||
+            Number(form.quantity) <= 0 ||
+            !form.harvested_at ||
+            !form.preservation_method ||
+            Number(form.price) <= 0
+        ) {
+            setPriceAnalysisError('Complete the listing details and enter a price first.');
+            return;
+        }
+
+        setIsAnalyzingPrice(true);
+        setPriceAnalysis(null);
+        setPriceAnalysisError(null);
+
+        try {
+            const result: unknown = await requestResourcePriceAnalysis({
+                name: selectedResource.name,
+                weight: Number(form.quantity),
+                harvested_at: form.harvested_at,
+                preservation_method: form.preservation_method,
+                price: Number(form.price),
+                farmer_location: priceRecommendation?.farmer_location ?? null,
+                market_area: priceRecommendation?.market_area ?? null,
+                market_average: priceRecommendation?.average_price ?? null,
+                market_minimum: priceRecommendation?.minimum_price ?? null,
+                market_maximum: priceRecommendation?.maximum_price ?? null,
+            });
+
+            if (!isResourcePriceAnalysis(result)) {
+                throw new Error('Invalid AI price analysis response.');
+            }
+
+            setPriceAnalysis(result);
+        } catch {
+            setPriceAnalysisError(
+                'The AI price analysis is temporarily unavailable. Your listing price is still saved.',
+            );
+        } finally {
+            setIsAnalyzingPrice(false);
         }
     };
 
@@ -372,6 +388,8 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                 reset();
                 setImagePreview(null);
                 setPriceRecommendation(null);
+                setPriceAnalysis(null);
+                setPriceAnalysisError(null);
                 requestedResourceId.current = null;
                 setCurrentStep(1);
             },
@@ -379,7 +397,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
     };
 
     return (
-        <div className="mx-auto w-full max-w-3xl">
+        <div className="mx-auto w-full max-w-3xl pb-20 md:pb-0">
             {recentlySuccessful && (
                 <div
                     role="status"
@@ -707,12 +725,14 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                 {priceRecommendation && (
                                     <PriceRecommendationCard
                                         recommendation={priceRecommendation}
-                                        onUsePrice={(price) =>
+                                        onUsePrice={(price) => {
                                             updateField(
                                                 'price',
                                                 price.toString(),
-                                            )
-                                        }
+                                            );
+                                            setPriceAnalysis(null);
+                                            setPriceAnalysisError(null);
+                                        }}
                                     />
                                 )}
 
@@ -740,12 +760,14 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                             min="0"
                                             step="0.01"
                                             value={form.price}
-                                            onChange={(event) =>
+                                            onChange={(event) => {
                                                 updateField(
                                                     'price',
                                                     event.target.value,
-                                                )
-                                            }
+                                                );
+                                                setPriceAnalysis(null);
+                                                setPriceAnalysisError(null);
+                                            }}
                                             placeholder="0.00"
                                             className="w-full rounded-2xl border-2 border-gray-200 py-4 pl-11 pr-20 text-xl font-bold outline-none transition focus:border-[#6ab225] focus:ring-4 focus:ring-[#6ab225]/10"
                                         />
@@ -754,7 +776,42 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                             / kg
                                         </span>
                                     </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => void analyzePrice()}
+                                        disabled={
+                                            isAnalyzingPrice ||
+                                            Number(form.price) <= 0
+                                        }
+                                        className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-2 border-[#03592f] bg-white px-4 py-3 text-sm font-bold text-[#03592f] transition hover:bg-emerald-50 focus:outline-none focus:ring-4 focus:ring-[#6ab225]/20 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+                                    >
+                                        <Sparkles size={18} />
+                                        {isAnalyzingPrice
+                                            ? 'Analyzing market price...'
+                                            : 'Analyze price with AI'}
+                                    </button>
                                 </div>
+
+                                {priceAnalysis ? (
+                                    <PriceAnalysisCard
+                                        analysis={priceAnalysis}
+                                        currentPrice={Number(form.price)}
+                                        onUsePrice={(price) => {
+                                            updateField('price', price.toString());
+                                            setPriceAnalysis(null);
+                                        }}
+                                    />
+                                ) : null}
+
+                                {priceAnalysisError ? (
+                                    <div
+                                        role="alert"
+                                        className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
+                                    >
+                                        {priceAnalysisError}
+                                    </div>
+                                ) : null}
 
                                 <div className="rounded-2xl bg-[#f7faf7] p-5">
                                     <div className="mb-4 flex items-center gap-2">
@@ -817,11 +874,11 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
 
                 {/* Navigation */}
                 {currentStep > 1 && (
-                    <div className="mt-5 flex items-center justify-between gap-3">
+                    <div className="fixed inset-x-3 bottom-[calc(84px+env(safe-area-inset-bottom))] z-[60] mx-auto flex max-w-3xl items-center justify-between gap-2 rounded-2xl border border-gray-200 bg-white/95 p-2 shadow-xl shadow-gray-900/15 backdrop-blur-md md:static md:mt-5 md:max-w-none md:gap-3 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none">
                         <button
                             type="button"
                             onClick={previousStep}
-                            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 font-semibold text-gray-700 transition hover:bg-gray-50"
+                            className="flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-emerald-600/15 sm:px-5 sm:text-base"
                         >
                             <ArrowLeft size={18} />
                             Back
@@ -832,7 +889,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                 type="button"
                                 onClick={nextStep}
                                 disabled={!canContinue()}
-                                className="flex items-center gap-2 rounded-xl bg-[#03592f] px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-[#024a27] disabled:cursor-not-allowed disabled:bg-gray-300"
+                                className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#03592f] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#024a27] focus:outline-none focus:ring-4 focus:ring-[#6ab225]/25 disabled:cursor-not-allowed disabled:bg-gray-300 sm:flex-none sm:px-6 sm:text-base"
                             >
                                 Continue
                                 <ArrowRight size={18} />
@@ -841,7 +898,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                             <button
                                 type="submit"
                                 disabled={!canContinue() || processing}
-                                className="flex items-center gap-2 rounded-xl bg-[#6ab225] px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-[#5d9e20] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#6ab225] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5d9e20] focus:outline-none focus:ring-4 focus:ring-[#6ab225]/25 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none sm:px-6 sm:text-base"
                             >
                                 <Check size={19} />
 
@@ -876,7 +933,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                     Processors for {selectedResource.name}
                                 </h2>
                                 <p className="mt-1 text-sm leading-5 text-gray-500">
-                                    Ranked by past purchases of this resource, then by distance from your farm.
+                                    Matched with processor demand records for this resource, then ranked by distance from your farm.
                                 </p>
                             </div>
                             <button
@@ -918,9 +975,9 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                                             <h3 className="font-bold text-gray-900">{processor.business_name}</h3>
                                                             <p className="text-sm text-gray-500">{processor.business_type}</p>
                                                         </div>
-                                                        {processor.has_bought_resource ? (
+                                                        {processor.is_resource_match ? (
                                                             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
-                                                                Past buyer
+                                                                Resource demand match
                                                             </span>
                                                         ) : (
                                                             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-gray-600">
@@ -974,7 +1031,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             ) : null}
 
             {currentStep === 1 && selectedResource && (
-                <div className="fixed inset-x-4 bottom-[88px] z-40 mx-auto max-w-sm md:bottom-6">
+                <div className="fixed inset-x-4 bottom-[calc(88px+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-sm md:bottom-6">
                     <button
                         type="button"
                         onClick={nextStep}
@@ -1047,6 +1104,107 @@ function ReviewItem({
                 {value}
             </span>
         </div>
+    );
+}
+
+function PriceAnalysisCard({
+    analysis,
+    currentPrice,
+    onUsePrice,
+}: {
+    analysis: ResourcePriceAnalysis;
+    currentPrice: number;
+    onUsePrice: (price: number) => void;
+}): ReactElement {
+    const estimatedPrice = analysis.estimated_price;
+    const priceDifference =
+        estimatedPrice === null ? null : currentPrice - estimatedPrice;
+    const statusLabel = analysis.freshness_status
+        ? analysis.freshness_status.replaceAll('_', ' ')
+        : 'Not available';
+
+    return (
+        <section className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-700 text-white">
+                        <Sparkles size={18} />
+                    </span>
+                    <div>
+                        <h3 className="font-bold text-gray-900">
+                            AI listing analysis
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                            Resource condition and market-price review
+                        </p>
+                    </div>
+                </div>
+
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold capitalize text-sky-800 ring-1 ring-sky-200">
+                    {statusLabel}
+                </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl bg-white p-4 ring-1 ring-sky-100">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        AI estimated price
+                    </p>
+                    <p className="mt-1 text-2xl font-extrabold text-sky-800">
+                        {estimatedPrice === null
+                            ? 'Unavailable'
+                            : `₱${formatPrice(estimatedPrice)} / kg`}
+                    </p>
+                    {priceDifference !== null ? (
+                        <p className="mt-1 text-xs text-gray-500">
+                            Your price is{' '}
+                            {Math.abs(priceDifference) < 0.01
+                                ? 'aligned with the estimate'
+                                : `${formatPrice(Math.abs(priceDifference))} ${priceDifference > 0 ? 'above' : 'below'} the estimate`}
+                            .
+                        </p>
+                    ) : null}
+                </div>
+
+                <div className="rounded-xl bg-white p-4 ring-1 ring-sky-100">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Expected usable until
+                    </p>
+                    <p className="mt-1 text-base font-bold text-gray-800">
+                        {analysis.fresh_until
+                            ? new Date(`${analysis.fresh_until}T00:00:00`).toLocaleDateString(
+                                  'en-PH',
+                                  {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                  },
+                              )
+                            : 'Not available'}
+                    </p>
+                    <p className="mt-1 text-xs capitalize text-gray-500">
+                        Condition: {statusLabel}
+                    </p>
+                </div>
+            </div>
+
+            {analysis.message ? (
+                <p className="mt-4 text-sm leading-6 text-gray-700">
+                    {analysis.message}
+                </p>
+            ) : null}
+
+            {estimatedPrice !== null &&
+            Math.abs(currentPrice - estimatedPrice) >= 0.01 ? (
+                <button
+                    type="button"
+                    onClick={() => onUsePrice(estimatedPrice)}
+                    className="mt-4 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-sky-800 focus:outline-none focus:ring-4 focus:ring-sky-700/20"
+                >
+                    Use AI estimated price
+                </button>
+            ) : null}
+        </section>
     );
 }
 
@@ -1231,6 +1389,31 @@ function isPriceRecommendation(value: unknown): value is PriceRecommendation {
     );
 }
 
+function isResourcePriceAnalysis(value: unknown): value is ResourcePriceAnalysis {
+    if (typeof value !== 'object' || value === null) {
+        return false;
+    }
+
+    const payload = value as Record<string, unknown>;
+    const validStatuses = [
+        'fresh',
+        'aging',
+        'near_spoilage',
+        'spoiled',
+    ];
+
+    return (
+        (typeof payload.estimated_price === 'number' ||
+            payload.estimated_price === null) &&
+        (typeof payload.fresh_until === 'string' ||
+            payload.fresh_until === null) &&
+        (payload.freshness_status === null ||
+            (typeof payload.freshness_status === 'string' &&
+                validStatuses.includes(payload.freshness_status))) &&
+        (typeof payload.message === 'string' || payload.message === null)
+    );
+}
+
 function isBuyerSuggestionResponse(value: unknown): value is BuyerSuggestionResponse {
     if (typeof value !== 'object' || value === null) {
         return false;
@@ -1255,8 +1438,8 @@ function isBuyerSuggestionResponse(value: unknown): value is BuyerSuggestionResp
                 typeof item.complete_address === 'string' &&
                 typeof item.contact_number === 'string' &&
                 (typeof item.distance_km === 'number' || item.distance_km === null) &&
-                typeof item.has_bought_resource === 'boolean' &&
-                typeof item.matching_transactions_count === 'number'
+                typeof item.is_resource_match === 'boolean' &&
+                typeof item.matching_demand_count === 'number'
             );
         })
     );

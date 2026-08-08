@@ -10,7 +10,7 @@ use Illuminate\Support\Collection;
 class NearbyProcessorSuggestionService
 {
     /**
-     * @return array{farmer_location: string, processors: Collection<int, array{id: int, business_name: string, business_type: string, complete_address: string, contact_number: string, distance_km: float|null, has_bought_resource: bool, matching_transactions_count: int}>}
+     * @return array{farmer_location: string, processors: Collection<int, array{id: int, business_name: string, business_type: string, complete_address: string, contact_number: string, distance_km: float|null, is_resource_match: bool, matching_demand_count: int}>}
      */
     public function suggest(AgriResource $resource, FarmerProfile $farmerProfile): array
     {
@@ -24,9 +24,8 @@ class NearbyProcessorSuggestionService
                 'latitude',
                 'longitude',
             ])
-            ->withCount(['transactions as matching_transactions_count' => fn ($query) => $query
-                ->whereHas('resourceListing', fn ($listingQuery) => $listingQuery
-                    ->where('agri_resource_id', $resource->getKey()))])
+            ->withCount(['resourceDemands as matching_demand_count' => fn ($query) => $query
+                ->where('agri_resource_id', $resource->getKey())])
             ->get()
             ->map(function (ProcessorProfile $processor) use ($farmerProfile): array {
                 $distance = $this->distanceInKilometers(
@@ -43,15 +42,15 @@ class NearbyProcessorSuggestionService
                     'complete_address' => $processor->complete_address,
                     'contact_number' => $processor->contact_number,
                     'distance_km' => $distance,
-                    'has_bought_resource' => $processor->matching_transactions_count > 0,
-                    'matching_transactions_count' => $processor->matching_transactions_count,
+                    'is_resource_match' => $processor->matching_demand_count > 0,
+                    'matching_demand_count' => $processor->matching_demand_count,
                 ];
             })
             ->sort(function (array $first, array $second): int {
-                $historyComparison = $second['matching_transactions_count'] <=> $first['matching_transactions_count'];
+                $demandMatchComparison = $second['matching_demand_count'] <=> $first['matching_demand_count'];
 
-                if ($historyComparison !== 0) {
-                    return $historyComparison;
+                if ($demandMatchComparison !== 0) {
+                    return $demandMatchComparison;
                 }
 
                 return ($first['distance_km'] ?? PHP_FLOAT_MAX)

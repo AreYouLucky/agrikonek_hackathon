@@ -37,6 +37,9 @@ class OpenAIService
     {
         $response = Http::withToken(config('services.openai.key'))
             ->acceptJson()
+            ->connectTimeout(5)
+            ->timeout(20)
+            ->retry([200, 500])
             ->post('https://api.openai.com/v1/responses', [
                 'model' => config('services.openai.model'),
 
@@ -44,9 +47,9 @@ class OpenAIService
                     [
                         'role' => 'system',
                         'content' => '
-                        You are an agricultural produce analysis assistant.
+                        You are a Philippine agricultural surplus and waste-resource market analysis assistant.
 
-                        Analyze the supplied crop data.
+                        Analyze the supplied resource listing and any verified market-price context.
 
                         Return ONLY valid JSON using this exact structure:
 
@@ -59,11 +62,13 @@ class OpenAIService
 
                         Rules:
                         - estimated_price must be a number representing the recommended price per kilogram.
+                        - When market_minimum and market_maximum are supplied, estimated_price must stay inside that verified range.
+                        - Compare the seller price with the supplied market average when available.
                         - fresh_until must be a date in YYYY-MM-DD format.
                         - freshness_status must only be:
                           fresh, aging, near_spoilage, or spoiled.
                         - message must be short, maximum 15 words.
-                        - Use only the supplied crop data.
+                        - Use only the supplied resource and market data.
                         - Do not include markdown.
                         - Do not include ```json.
                         - Do not include any explanation outside the JSON.
@@ -71,7 +76,7 @@ class OpenAIService
                     ],
                     [
                         'role' => 'user',
-                        'content' => json_encode($crop),
+                        'content' => json_encode($crop, JSON_THROW_ON_ERROR),
                     ],
                 ],
             ])
