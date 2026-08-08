@@ -12,6 +12,7 @@ class Message extends Model
         'sender_id',
         'message',
         'is_img',
+        'is_read',
     ];
 
     protected function casts(): array

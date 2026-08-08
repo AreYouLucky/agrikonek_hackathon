@@ -222,7 +222,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             )}
 
             {/* Progress */}
-            <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="mb-4 rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm sm:mb-6 sm:p-5">
                 <div className="mb-3 flex items-center justify-between">
                     <div>
                         <p className="text-sm font-medium text-[#03592f]">
@@ -250,7 +250,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             </div>
 
             <form onSubmit={submit}>
-                <div className="min-h-[420px] rounded-3xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
+                <div className="min-h-[360px] rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm sm:min-h-[420px] sm:p-8">
                     {/* STEP 1 */}
                     {currentStep === 1 && (
                         <StepContainer
@@ -644,7 +644,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             </form>
 
             {currentStep === 1 && selectedResource && (
-                <div className="fixed inset-x-4 bottom-[88px] z-40 mx-auto max-w-sm">
+                <div className="fixed inset-x-4 bottom-[88px] z-40 mx-auto max-w-sm md:bottom-6">
                     <button
                         type="button"
                         onClick={nextStep}
@@ -683,12 +683,12 @@ function StepContainer({
 }) {
     return (
         <div>
-            <div className="mb-8">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#03592f]/10 text-[#03592f]">
+            <div className="mb-5 sm:mb-8">
+                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#03592f]/10 text-[#03592f] sm:mb-4 sm:h-12 sm:w-12">
                     <Icon size={24} />
                 </div>
 
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+                <h1 className="text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
                     {title}
                 </h1>
 

@@ -37,14 +37,14 @@ export default function Profile({ farmerProfile }: Props): ReactElement {
                                     <UserRound size={31} />
                                 </div>
 
-                                <div>
+                                <div className="min-w-0">
                                     <p className="text-sm font-medium text-emerald-100">
                                         Farmer profile
                                     </p>
-                                    <h1 className="mt-1 text-2xl font-extrabold tracking-tight">
+                                    <h1 className="mt-1 truncate text-2xl font-extrabold tracking-tight">
                                         {auth.user.name}
                                     </h1>
-                                    <p className="mt-1 text-sm text-emerald-100">
+                                    <p className="mt-1 truncate text-sm text-emerald-100">
                                         {auth.user.email}
                                     </p>
                                 </div>
@@ -52,7 +52,7 @@ export default function Profile({ farmerProfile }: Props): ReactElement {
 
                             <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#6ab225] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-950">
                                 <BadgeCheck size={16} />
-                                Verified farmer
+                                Farmer account
                             </span>
                         </div>
                     </div>
