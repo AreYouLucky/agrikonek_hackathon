@@ -16,11 +16,6 @@ interface FarmersDashboardLayoutProps {
 
 const navigation = [
     {
-        label: 'Home',
-        href: '/dashboard',
-        icon: Home,
-    },
-    {
         label: 'Transactions',
         href: '/transactions',
         icon: ReceiptText,

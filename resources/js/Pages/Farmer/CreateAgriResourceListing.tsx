@@ -4,6 +4,6 @@ import React from 'react'
 
 export default function CreateAgriResourceListing() {
   return (
-    <div>CreateAgriResourceListing</div>
+    <FarmersDashboardLayout>CreateAgriResourceListing</FarmersDashboardLayout>
   )
 }
