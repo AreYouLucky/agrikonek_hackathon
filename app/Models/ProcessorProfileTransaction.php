@@ -29,6 +29,11 @@ class ProcessorProfileTransaction extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function processorProfile(): BelongsTo
+    {
+        return $this->belongsTo(ProcessorProfile::class);
+    }
+
     public function agriResource(): BelongsTo
     {
         return $this->belongsTo(AgriResource::class);

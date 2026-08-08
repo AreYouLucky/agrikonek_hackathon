@@ -6,8 +6,7 @@ use App\Models\AgriResource;
 use App\Models\FarmerProfile;
 use App\Models\MarketPrice;
 use App\Models\ProcessorProfile;
-use App\Models\ResourceListing;
-use App\Models\Transaction;
+use App\Models\ProcessorProfileTransaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
@@ -131,7 +130,7 @@ class FarmerResourceListingTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_farmer_receives_processor_suggestions_ranked_by_buying_history_and_distance(): void
+    public function test_farmer_receives_processor_suggestions_ranked_by_resource_demand_and_distance(): void
     {
         [$farmer, $farmerProfile] = $this->createFarmer();
         $farmerProfile->update([
@@ -139,22 +138,15 @@ class FarmerResourceListingTest extends TestCase
             'longitude' => 121.0437,
         ]);
         $resource = AgriResource::query()->create(['name' => 'Rice Husk']);
-        $listing = ResourceListing::query()->create([
-            'farmer_profile_id' => $farmerProfile->getKey(),
+        $demandMatch = $this->createProcessor('Circular Mill', 14.5995, 120.9842);
+        $nearbyProspect = $this->createProcessor('Nearby Recycler', 14.6765, 121.0440);
+        ProcessorProfileTransaction::query()->create([
+            'user_id' => $demandMatch->user_id,
+            'processor_profile_id' => $demandMatch->getKey(),
             'agri_resource_id' => $resource->getKey(),
             'quantity' => 50,
-            'havested_at' => now(),
-            'preservation_method' => 'dried',
             'price' => 10,
-        ]);
-        $pastBuyer = $this->createProcessor('Circular Mill', 14.5995, 120.9842);
-        $nearbyProspect = $this->createProcessor('Nearby Recycler', 14.6765, 121.0440);
-        Transaction::query()->create([
-            'processor_profile_id' => $pastBuyer->getKey(),
-            'resource_listing_id' => $listing->getKey(),
-            'quantity' => 10,
-            'price' => 10,
-            'status' => 'completed',
+            'remarks' => 'Currently needed for processing',
         ]);
 
         $response = $this->actingAs($farmer)->postJson(
@@ -164,10 +156,12 @@ class FarmerResourceListingTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('farmer_location', 'Test Farm Address')
-            ->assertJsonPath('processors.0.id', $pastBuyer->getKey())
-            ->assertJsonPath('processors.0.has_bought_resource', true)
+            ->assertJsonPath('processors.0.id', $demandMatch->getKey())
+            ->assertJsonPath('processors.0.is_resource_match', true)
+            ->assertJsonPath('processors.0.matching_demand_count', 1)
             ->assertJsonPath('processors.1.id', $nearbyProspect->getKey())
-            ->assertJsonPath('processors.1.has_bought_resource', false);
+            ->assertJsonPath('processors.1.is_resource_match', false)
+            ->assertJsonPath('processors.1.matching_demand_count', 0);
     }
 
     public function test_farmer_can_store_a_resource_listing(): void

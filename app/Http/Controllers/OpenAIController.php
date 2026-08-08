@@ -1,10 +1,11 @@
 <?php
 
 namespace App\Http\Controllers;
+
+use App\Http\Requests\AnalyzeCropPriceRequest;
 use App\Services\OpenAIService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-
 
 class OpenAIController extends Controller
 {
@@ -24,18 +25,10 @@ class OpenAIController extends Controller
     }
 
     public function analyzeCropPrice(
-        Request $request,
+        AnalyzeCropPriceRequest $request,
         OpenAIService $openAI
     ): JsonResponse {
-        $validated = $request->validate([
-            'name' => ['required', 'string'],
-            'weight' => ['required', 'numeric'],
-            'harvested_at' => ['required', 'string'],
-            'preservation_method' => ['required', 'string'],
-            'price' => ['required', 'string'],
-        ]);
-
-        $analysis = $openAI->analyzeCrop($validated);
+        $analysis = $openAI->analyzeCrop($request->validated());
 
         return response()->json($analysis);
     }
