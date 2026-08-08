@@ -49,9 +49,7 @@ export default function ProcessorLayouts({
                         href={route('processors.dashboard')}
                         className="flex min-w-0 items-center gap-3"
                     >
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#03592f] text-lg font-black text-white">
-                            A
-                        </span>
+                       <img src='/storage/logos/logo-only.png' height={50} width={50}/>
                         <span className="min-w-0">
                             <span className="block text-xs font-bold uppercase tracking-wide text-[#6ab225]">
                                 AgriKonek
