@@ -3,9 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::prefix('agri-resources')->middleware(['auth', 'role:processor'])->group(function () {
+Route::prefix('processors')->middleware(['auth', 'role:processor'])->group(function () {
 
-    Route::get('', [App\Http\Controllers\AgriResourceController::class, 'index'])->name('agri-resources');
+    Route::get('/dashboard', [App\Http\Controllers\Processor\DashboardController::class, 'index'])->name('processors.dashboard');
 
 
     // Route::get('/agri-resources', function () {

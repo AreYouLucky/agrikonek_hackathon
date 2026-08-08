@@ -38,7 +38,7 @@ class AuthenticatedSessionController extends Controller
         $dashboard = match ($user->role) {
             'lgu' => route('lgu.dashboard'),
             'farmer' => route('create-agri-resource-listing'),
-            'processor' => route('agri-resources'),
+            'processor' => route('processors.dashboard'),
 
             default => route('login'),
         };

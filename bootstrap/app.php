@@ -35,7 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
             return match ($request->user()?->role) {
                 'lgu' => route('lgu.dashboard'),
                 'farmer' => route('create-agri-resource-listing'),
-                'processor' => route('agri-resources'),
+                'processor' => route('processors.dashboard'),
 
                 default => route('login'),
             };
