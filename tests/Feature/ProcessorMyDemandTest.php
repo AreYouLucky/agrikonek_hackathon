@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\AgriResource;
+use App\Models\FarmerProfile;
 use App\Models\ProcessorProfile;
 use App\Models\ProcessorProfileTransaction;
+use App\Models\ResourceListing;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -96,6 +98,68 @@ class ProcessorMyDemandTest extends TestCase
             ->has('recentDemands', 2)
             ->where('recentDemands.0.resource', 'Squash')
             ->where('recentDemands.1.resource', 'Tomato'));
+    }
+
+    public function test_processor_smart_demand_page_shows_ranked_farmer_resource_suggestions(): void
+    {
+        [$processor, $processorProfile] = $this->createProcessor();
+        $farmer = User::factory()->create(['role' => 'farmer']);
+        $tomato = AgriResource::query()->create(['name' => 'Tomato']);
+        $cassava = AgriResource::query()->create(['name' => 'Cassava']);
+        $farmerProfile = FarmerProfile::query()->create([
+            'user_id' => $farmer->getKey(),
+            'farm_name' => 'Green Valley Farm',
+            'farm_complete_address' => 'Private Farm Address',
+            'latitude' => 10.3157,
+            'longitude' => 123.8854,
+            'contact_number' => '09170000000',
+        ]);
+
+        ProcessorProfileTransaction::query()->create([
+            'user_id' => $processor->getKey(),
+            'processor_profile_id' => $processorProfile->getKey(),
+            'agri_resource_id' => $tomato->getKey(),
+            'quantity' => 100,
+            'price' => 50,
+            'remarks' => 'For sauce production',
+        ]);
+
+        ResourceListing::query()->create([
+            'farmer_profile_id' => $farmerProfile->getKey(),
+            'agri_resource_id' => $cassava->getKey(),
+            'quantity' => 75,
+            'havested_at' => now()->subDay(),
+            'preservation_method' => 'Cleaned and packed',
+            'price' => 25,
+        ]);
+
+        ResourceListing::query()->create([
+            'farmer_profile_id' => $farmerProfile->getKey(),
+            'agri_resource_id' => $tomato->getKey(),
+            'quantity' => 125,
+            'havested_at' => now()->subHours(6),
+            'preservation_method' => 'Fresh crates',
+            'price' => 45,
+            'fresh_until' => now()->addDays(3),
+            'freshness_status' => 'Fresh',
+        ]);
+
+        $response = $this->actingAs($processor)
+            ->get(route('processors.smart-demands'));
+
+        $response->assertOk()->assertInertia(fn (Assert $page): Assert => $page
+            ->component('Processor/SmartDemand/SmartDemandIndex')
+            ->where('processorProfile.business_name', $processorProfile->business_name)
+            ->where('summary.posted_resources', 2)
+            ->where('summary.matched_resources', 1)
+            ->has('resources', 2)
+            ->has('listings', 2)
+            ->where('listings.0.resource', 'Tomato')
+            ->where('listings.0.is_demand_match', true)
+            ->where('listings.0.target_price', 50)
+            ->missing('listings.0.contact_number')
+            ->missing('listings.0.location')
+            ->missing('listings.0.image_url'));
     }
 
     /** @return array{User, ProcessorProfile} */

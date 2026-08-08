@@ -1,5 +1,13 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Home, Info, ListChecks, LogOut, Menu, X } from 'lucide-react';
+import {
+    Home,
+    Info,
+    ListChecks,
+    LogOut,
+    Menu,
+    PackageSearch,
+    X,
+} from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
 type ProcessorLayoutsProps = {
@@ -18,6 +26,12 @@ const navigation = [
         href: route('processors.agri-resources.my-demands'),
         icon: ListChecks,
         match: '/processors/agri-resources/my-demands',
+    },
+    {
+        label: 'Smart Demand',
+        href: route('processors.smart-demands'),
+        icon: PackageSearch,
+        match: '/processors/smart-demands',
     },
     {
         label: 'About Us',
