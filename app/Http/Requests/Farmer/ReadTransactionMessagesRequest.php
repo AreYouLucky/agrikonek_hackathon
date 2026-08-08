@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Farmer;
 
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class SendTransactionMessageRequest extends FormRequest
+class ReadTransactionMessagesRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -15,10 +15,11 @@ class SendTransactionMessageRequest extends FormRequest
     public function authorize(): bool
     {
         $user = $this->user();
-        $transaction = Transaction::query()->find($this->integer('transaction_id'));
+        $transaction = $this->route('transaction');
 
         return $user instanceof User
-            && $transaction !== null
+            && $user->role === 'farmer'
+            && $transaction instanceof Transaction
             && $transaction->isAccessibleBy($user);
     }
 
@@ -29,9 +30,6 @@ class SendTransactionMessageRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'transaction_id' => ['required', 'integer', 'exists:transactions,id'],
-            'message' => ['required', 'string', 'max:5000'],
-        ];
+        return [];
     }
 }

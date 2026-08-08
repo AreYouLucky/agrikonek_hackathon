@@ -10,7 +10,7 @@ class Transaction extends Model
 {
     protected $fillable = [
         'processor_profile_id',
-        'agri_resource_id',
+        'resource_listing_id',
         'quantity',
         'price',
         'status',
@@ -19,13 +19,14 @@ class Transaction extends Model
     protected function casts(): array
     {
         return [
+            'quantity' => 'float',
             'price' => 'float',
         ];
     }
 
-    public function agriResource(): BelongsTo
+    public function resourceListing(): BelongsTo
     {
-        return $this->belongsTo(AgriResource::class);
+        return $this->belongsTo(ResourceListing::class);
     }
 
     public function processorProfile(): BelongsTo
@@ -44,8 +45,19 @@ class Transaction extends Model
             return true;
         }
 
-        return $this->processorProfile()
-            ->where('user_id', $user->getKey())
-            ->exists();
+        if ($user->role === 'processor') {
+            return $this->processorProfile()
+                ->where('user_id', $user->getKey())
+                ->exists();
+        }
+
+        if ($user->role === 'farmer') {
+            return $this->resourceListing()
+                ->whereHas('farmerProfile', fn ($query) => $query
+                    ->where('user_id', $user->getKey()))
+                ->exists();
+        }
+
+        return false;
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -12,7 +14,12 @@ class AccessTransactionRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+        $transaction = Transaction::query()->find($this->integer('transaction_id'));
+
+        return $user instanceof User
+            && $transaction !== null
+            && $transaction->isAccessibleBy($user);
     }
 
     /**

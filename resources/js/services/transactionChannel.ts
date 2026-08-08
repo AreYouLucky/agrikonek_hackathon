@@ -2,7 +2,11 @@ import axios from 'axios';
 
 export type TransactionMessage = {
     transaction_id: number;
+    id: number;
     message: string;
+    sender_id: number;
+    sender_name: string;
+    created_at: string;
 };
 
 type SuccessResponse = {

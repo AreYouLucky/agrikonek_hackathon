@@ -31,9 +31,11 @@ class TransactionRealtimeTest extends TestCase
             'X-Socket-ID' => '123.456',
         ]);
 
-        $response->assertCreated()->assertExactJson([
+        $response->assertCreated()->assertJson([
             'transaction_id' => $transaction->getKey(),
             'message' => 'Sample message',
+            'sender_id' => $owner->getKey(),
+            'sender_name' => $owner->name,
         ]);
 
         $this->assertDatabaseHas('messages', [
@@ -46,26 +48,21 @@ class TransactionRealtimeTest extends TestCase
             TransactionMessageSent::class,
             fn (TransactionMessageSent $event): bool => $event->transactionId === $transaction->getKey()
                 && $event->message === 'Sample message'
-                && $event->broadcastOn()[0]->name === 'transaction.'.$transaction->getKey()
+                && $event->senderId === $owner->getKey()
+                && $event->broadcastOn()[0]->name === 'private-transaction.'.$transaction->getKey()
                 && $event->broadcastAs() === 'transaction-message-sent'
                 && $event->socket === '123.456',
         );
     }
 
-    public function test_anonymous_user_can_send_a_demo_message_for_an_existing_transaction(): void
+    public function test_anonymous_user_cannot_send_a_transaction_message(): void
     {
         [, $transaction] = $this->createTransaction();
-        Event::fake([TransactionMessageSent::class]);
-
         $this->postJson('/api/transactions/messages', [
             'transaction_id' => $transaction->getKey(),
             'message' => 'Anonymous demo message',
-        ])->assertCreated()->assertExactJson([
-            'transaction_id' => $transaction->getKey(),
-            'message' => 'Anonymous demo message',
-        ]);
+        ])->assertUnauthorized();
 
-        Event::assertDispatched(TransactionMessageSent::class);
         $this->assertDatabaseMissing('messages', [
             'transaction_id' => $transaction->getKey(),
             'message' => 'Anonymous demo message',
@@ -74,14 +71,14 @@ class TransactionRealtimeTest extends TestCase
 
     public function test_ping_and_alert_broadcast_to_their_expected_channels(): void
     {
-        [, $transaction] = $this->createTransaction();
+        [$owner, $transaction] = $this->createTransaction();
         Event::fake([TransactionAlert::class, TransactionPinged::class]);
 
-        $this->postJson('/api/transactions/alert', [
+        $this->actingAs($owner)->postJson('/api/transactions/alert', [
             'transaction_id' => $transaction->getKey(),
         ])->assertOk()->assertExactJson(['success' => true]);
 
-        $this->postJson('/api/transactions/ping', [
+        $this->actingAs($owner)->postJson('/api/transactions/ping', [
             'transaction_id' => $transaction->getKey(),
         ], [
             'X-Socket-ID' => '789.123',
@@ -89,12 +86,12 @@ class TransactionRealtimeTest extends TestCase
 
         Event::assertDispatched(
             TransactionAlert::class,
-            fn (TransactionAlert $event): bool => $event->broadcastOn()[0]->name === 'transaction.'.$transaction->getKey()
+            fn (TransactionAlert $event): bool => $event->broadcastOn()[0]->name === 'private-transaction.'.$transaction->getKey()
                 && $event->broadcastAs() === 'transaction-alert',
         );
         Event::assertDispatched(
             TransactionPinged::class,
-            fn (TransactionPinged $event): bool => $event->broadcastOn()[0]->name === 'transaction-ping.'.$transaction->getKey()
+            fn (TransactionPinged $event): bool => $event->broadcastOn()[0]->name === 'private-transaction-ping.'.$transaction->getKey()
                 && $event->broadcastAs() === 'transaction-pinged'
                 && $event->socket === '789.123',
         );
@@ -102,14 +99,16 @@ class TransactionRealtimeTest extends TestCase
 
     public function test_realtime_endpoints_reject_an_unknown_transaction_id(): void
     {
-        $this->postJson('/api/transactions/ping', [
-            'transaction_id' => 999999,
-        ])->assertUnprocessable()->assertJsonValidationErrors('transaction_id');
+        [$owner] = $this->createTransaction();
 
-        $this->postJson('/api/transactions/messages', [
+        $this->actingAs($owner)->postJson('/api/transactions/ping', [
+            'transaction_id' => 999999,
+        ])->assertForbidden();
+
+        $this->actingAs($owner)->postJson('/api/transactions/messages', [
             'transaction_id' => 999999,
             'message' => 'Invalid transaction',
-        ])->assertUnprocessable()->assertJsonValidationErrors('transaction_id');
+        ])->assertForbidden();
     }
 
     /**

@@ -101,7 +101,7 @@ export default function Profile({ farmerProfile }: Props): ReactElement {
                             href="/create-agri-resource-listing"
                             className="flex items-center justify-between rounded-2xl bg-[#6ab225] px-5 py-4 font-bold text-white shadow-sm transition hover:bg-[#5d9e20] focus:outline-none focus:ring-4 focus:ring-[#6ab225]/25"
                         >
-                            Create a crop listing
+                            Create a resource listing
                             <Sprout size={20} />
                         </Link>
                     </>
@@ -113,7 +113,7 @@ export default function Profile({ farmerProfile }: Props): ReactElement {
                         </h2>
                         <p className="mt-2 text-sm leading-6 text-gray-500">
                             Add your farm details to help processors understand
-                            where your crops come from.
+                            where your surplus resources come from.
                         </p>
                     </section>
                 )}

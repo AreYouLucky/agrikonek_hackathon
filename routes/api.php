@@ -1,9 +1,10 @@
 <?php
-use App\Http\Controllers\OpenAIController;
+
 use App\Http\Controllers\Api\TransactionRealtimeController;
+use App\Http\Controllers\OpenAIController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('transactions')->group(function (): void {
+Route::middleware('auth:sanctum')->prefix('transactions')->group(function (): void {
     Route::post('messages', [TransactionRealtimeController::class, 'message']);
     Route::post('alert', [TransactionRealtimeController::class, 'alert']);
     Route::post('ping', [TransactionRealtimeController::class, 'ping']);

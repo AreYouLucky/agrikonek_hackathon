@@ -1,35 +1,48 @@
-import { useCallback, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FormEvent, ReactElement } from 'react';
 
 import { useTransactionChannel } from '@/hooks/useTransactionChannel';
-import {
-    pingTransaction,
-    sendMessage,
-    triggerTransactionAlert,
-    type TransactionMessage,
-} from '@/services/transactionChannel';
+import { sendMessage, type TransactionMessage } from '@/services/transactionChannel';
 
 type MessageBoxProps = {
     transactionId: number;
+    currentUserId?: number;
     initialMessages?: TransactionMessage[];
+    onIncomingMessage?: (message: TransactionMessage) => void;
 };
 
 export default function MessageBox({
     transactionId,
+    currentUserId = 0,
     initialMessages = [],
-}: MessageBoxProps) {
+    onIncomingMessage,
+}: MessageBoxProps): ReactElement {
     const [messages, setMessages] = useState(initialMessages);
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const messageEndRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        setMessages(initialMessages);
+    }, [initialMessages, transactionId]);
+
+    useEffect(() => {
+        messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     const handleMessage = useCallback((data: TransactionMessage): void => {
-        setMessages((currentMessages) => [...currentMessages, data]);
-    }, []);
+        setMessages((currentMessages) =>
+            currentMessages.some((item) => item.id === data.id)
+                ? currentMessages
+                : [...currentMessages, data],
+        );
+        onIncomingMessage?.(data);
+    }, [onIncomingMessage]);
 
     useTransactionChannel(transactionId, { onMessage: handleMessage });
 
-    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
         event.preventDefault();
 
         const trimmedMessage = message.trim();
@@ -59,26 +72,6 @@ export default function MessageBox({
         }
     };
 
-    const handleAlertClick = async (): Promise<void> => {
-        setError(null);
-
-        try {
-            await triggerTransactionAlert(transactionId);
-        } catch {
-            setError('The transaction alert could not be sent.');
-        }
-    };
-
-    const handlePingClick = async (): Promise<void> => {
-        setError(null);
-
-        try {
-            await pingTransaction(transactionId);
-        } catch {
-            setError('The transaction ping could not be sent.');
-        }
-    };
-
     return (
         <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
             <header className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 px-5 py-4">
@@ -91,22 +84,10 @@ export default function MessageBox({
                     </p>
                 </div>
 
-                <div className="flex gap-2">
-                    <button
-                        type="button"
-                        onClick={() => void handleAlertClick()}
-                        className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-medium text-stone-700 transition hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
-                    >
-                        Send update alert
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => void handlePingClick()}
-                        className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-medium text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600/30"
-                    >
-                        Ping transaction
-                    </button>
-                </div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    Live messages
+                </span>
             </header>
 
             <div
@@ -118,15 +99,33 @@ export default function MessageBox({
                         No messages yet.
                     </p>
                 ) : (
-                    messages.map((item, index) => (
+                    messages.map((item) => {
+                        const isOwnMessage = item.sender_id === currentUserId;
+
+                        return (
                         <div
-                            key={`${item.transaction_id}-${index}`}
-                            className="max-w-[85%] self-start rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-stone-700 shadow-sm ring-1 ring-stone-200"
+                            key={item.id}
+                            className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                                isOwnMessage
+                                    ? 'self-end rounded-br-md bg-emerald-700 text-white'
+                                    : 'self-start rounded-bl-md bg-white text-stone-700 ring-1 ring-stone-200'
+                            }`}
                         >
-                            {item.message}
+                            <p className={`mb-1 text-[11px] font-semibold ${isOwnMessage ? 'text-emerald-100' : 'text-stone-500'}`}>
+                                {isOwnMessage ? 'You' : item.sender_name}
+                            </p>
+                            <p className="whitespace-pre-wrap break-words">{item.message}</p>
+                            <p className={`mt-1.5 text-[10px] ${isOwnMessage ? 'text-emerald-100' : 'text-stone-400'}`}>
+                                {new Date(item.created_at).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                })}
+                            </p>
                         </div>
-                    ))
+                        );
+                    })
                 )}
+                <div ref={messageEndRef} />
             </div>
 
             <form onSubmit={handleSubmit} className="border-t border-stone-200 p-4">

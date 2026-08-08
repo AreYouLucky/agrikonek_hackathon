@@ -3,8 +3,13 @@
 namespace App\Http\Controllers\Farmer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Farmer\RecommendResourcePriceRequest;
 use App\Http\Requests\Farmer\StoreResourceListingRequest;
+use App\Http\Requests\Farmer\SuggestResourceBuyersRequest;
 use App\Models\AgriResource;
+use App\Services\MarketPriceRecommendationService;
+use App\Services\NearbyProcessorSuggestionService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -36,6 +41,34 @@ class FarmersController extends Controller
         ]);
 
         return to_route('create-agri-resource-listing')
-            ->with('success', 'Crop listing posted successfully.');
+            ->with('success', 'Surplus resource listing posted successfully.');
+    }
+
+    public function recommendResourcePrice(
+        RecommendResourcePriceRequest $request,
+        MarketPriceRecommendationService $recommendationService,
+    ): JsonResponse {
+        $resource = AgriResource::query()->findOrFail(
+            $request->integer('agri_resource_id'),
+        );
+        $farmerProfile = $request->user()->farmerProfile()->firstOrFail();
+
+        return response()->json(
+            $recommendationService->recommend($resource, $farmerProfile),
+        );
+    }
+
+    public function suggestResourceBuyers(
+        SuggestResourceBuyersRequest $request,
+        NearbyProcessorSuggestionService $suggestionService,
+    ): JsonResponse {
+        $resource = AgriResource::query()->findOrFail(
+            $request->integer('agri_resource_id'),
+        );
+        $farmerProfile = $request->user()->farmerProfile()->firstOrFail();
+
+        return response()->json(
+            $suggestionService->suggest($resource, $farmerProfile),
+        );
     }
 }

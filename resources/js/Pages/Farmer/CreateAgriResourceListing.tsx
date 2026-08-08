@@ -15,7 +15,7 @@ export default function CreateAgriResourceListing({
     resources,
 }: Props): ReactElement {
     return (
-        <FarmersDashboardLayout title="Create crop listing">
+        <FarmersDashboardLayout title="Create resource listing">
             <ResourceListingStepper resources={resources} />
         </FarmersDashboardLayout>
     );

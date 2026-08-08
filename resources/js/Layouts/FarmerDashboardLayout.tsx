@@ -1,6 +1,6 @@
 import LogoutPopup from '@/Components/Farmer/partials/LogoutPopup';
 import { Link, usePage } from '@inertiajs/react';
-import { Sprout, UserRound } from 'lucide-react';
+import { MessageCircleMore, Sprout, UserRound } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 
 type FarmersDashboardLayoutProps = {
@@ -13,6 +13,11 @@ const navigation = [
         label: 'New listing',
         href: '/create-agri-resource-listing',
         icon: Sprout,
+    },
+    {
+        label: 'Transactions',
+        href: '/farmer/transactions',
+        icon: MessageCircleMore,
     },
     {
         label: 'Profile',
@@ -96,7 +101,7 @@ export default function FarmersDashboardLayout({
                 aria-label="Farmer mobile navigation"
                 className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden"
             >
-                <div className="mx-auto grid h-[76px] max-w-md grid-cols-2 px-3 pb-[env(safe-area-inset-bottom)]">
+                <div className="mx-auto grid h-[76px] max-w-md grid-cols-3 px-3 pb-[env(safe-area-inset-bottom)]">
                     {navigation.map((item) => {
                         const Icon = item.icon;
                         const active = isActive(item.href);

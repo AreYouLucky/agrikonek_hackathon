@@ -19,6 +19,7 @@ class Message extends Model
     {
         return [
             'is_img' => 'boolean',
+            'is_read' => 'boolean',
         ];
     }
 

@@ -2,16 +2,29 @@ import { useForm } from '@inertiajs/react';
 import {
     ArrowLeft,
     ArrowRight,
+    Building2,
     CalendarDays,
     Camera,
     Check,
     CheckCircle2,
+    MapPin,
     Package,
     PhilippinePeso,
+    Recycle,
+    Phone,
+    Sparkles,
     Sprout,
+    TrendingUp,
     Warehouse,
+    X,
 } from 'lucide-react';
-import { type FormEvent, type ReactElement, useEffect, useState } from 'react';
+import {
+    type FormEvent,
+    type ReactElement,
+    useEffect,
+    useRef,
+    useState,
+} from 'react';
 
 type AgriResource = {
     id: number;
@@ -31,12 +44,44 @@ type FormData = {
     price: string;
 };
 
+type PriceRecommendation = {
+    recommended_price: number | null;
+    average_price: number | null;
+    minimum_price: number | null;
+    maximum_price: number | null;
+    farmer_location: string;
+    market_area: string | null;
+    market_count: number;
+    match_type:
+        | 'nearest_location'
+        | 'location_match'
+        | 'regional_fallback'
+        | 'no_market_data';
+    message: string;
+};
+
+type ProcessorSuggestion = {
+    id: number;
+    business_name: string;
+    business_type: string;
+    complete_address: string;
+    contact_number: string;
+    distance_km: number | null;
+    has_bought_resource: boolean;
+    matching_transactions_count: number;
+};
+
+type BuyerSuggestionResponse = {
+    farmer_location: string;
+    processors: ProcessorSuggestion[];
+};
+
 const steps = [
     {
         id: 1,
-        title: 'Crop',
-        description: 'What are you selling?',
-        icon: Sprout,
+        title: 'Resource',
+        description: 'What surplus is available?',
+        icon: Recycle,
     },
     {
         id: 2,
@@ -46,20 +91,20 @@ const steps = [
     },
     {
         id: 3,
-        title: 'Harvest',
-        description: 'When was it harvested?',
+        title: 'Source date',
+        description: 'When was it collected?',
         icon: CalendarDays,
     },
     {
         id: 4,
         title: 'Photo',
-        description: 'Add a crop photo',
+        description: 'Add a resource photo',
         icon: Camera,
     },
     {
         id: 5,
         title: 'Price',
-        description: 'Set your selling price',
+        description: 'Set your offer price',
         icon: PhilippinePeso,
     },
 ];
@@ -67,8 +112,8 @@ const steps = [
 const preservationMethods = [
     {
         value: 'none',
-        label: 'No preservation',
-        description: 'Freshly harvested and not stored',
+        label: 'No special storage',
+        description: 'Kept as-is without special preservation',
     },
     {
         value: 'refrigerated',
@@ -95,6 +140,18 @@ const preservationMethods = [
 export default function ResourceListingStepper({ resources }: Props): ReactElement {
     const [currentStep, setCurrentStep] = useState(1);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [priceRecommendation, setPriceRecommendation] =
+        useState<PriceRecommendation | null>(null);
+    const [isLoadingPrice, setIsLoadingPrice] = useState(false);
+    const [priceRecommendationError, setPriceRecommendationError] = useState<
+        string | null
+    >(null);
+    const requestedResourceId = useRef<number | null>(null);
+    const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
+    const [buyerSuggestions, setBuyerSuggestions] =
+        useState<BuyerSuggestionResponse | null>(null);
+    const [isLoadingBuyers, setIsLoadingBuyers] = useState(false);
+    const [buyerSuggestionError, setBuyerSuggestionError] = useState<string | null>(null);
 
     const {
         data: form,
@@ -125,7 +182,125 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
         };
     }, [imagePreview]);
 
+    useEffect(() => {
+        if (currentStep !== 5 || !selectedResource) {
+            return;
+        }
+
+        if (requestedResourceId.current === selectedResource.id) {
+            return;
+        }
+
+        const csrfToken = document.querySelector<HTMLMetaElement>(
+            'meta[name="csrf-token"]',
+        )?.content;
+
+        if (!csrfToken) {
+            setPriceRecommendationError(
+                'The market recommendation could not be requested. Please enter a price manually.',
+            );
+            return;
+        }
+
+        const abortController = new AbortController();
+        requestedResourceId.current = selectedResource.id;
+        setPriceRecommendation(null);
+        setPriceRecommendationError(null);
+        setIsLoadingPrice(true);
+
+        void fetch(route('farmer.resource-price-recommendation'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            signal: abortController.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+            },
+            body: JSON.stringify({
+                agri_resource_id: selectedResource.id,
+            }),
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error('Price recommendation request failed.');
+                }
+
+                const result: unknown = await response.json();
+
+                if (!isPriceRecommendation(result)) {
+                    throw new Error('Invalid price recommendation response.');
+                }
+
+                setPriceRecommendation(result);
+            })
+            .catch((error: unknown) => {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    requestedResourceId.current = null;
+                    return;
+                }
+
+                setPriceRecommendationError(
+                    'The AI market guide is temporarily unavailable. You can still enter a price manually.',
+                );
+            })
+            .finally(() => {
+                if (!abortController.signal.aborted) {
+                    setIsLoadingPrice(false);
+                }
+            });
+
+        return () => abortController.abort();
+    }, [currentStep, selectedResource]);
+
     const updateField = setData;
+
+    const selectResource = async (resource: AgriResource): Promise<void> => {
+        updateField('agri_resource_id', resource.id.toString());
+        setIsBuyerModalOpen(true);
+        setBuyerSuggestions(null);
+        setBuyerSuggestionError(null);
+        setIsLoadingBuyers(true);
+
+        const csrfToken = document.querySelector<HTMLMetaElement>(
+            'meta[name="csrf-token"]',
+        )?.content;
+
+        if (!csrfToken) {
+            setBuyerSuggestionError('Nearby processor suggestions are unavailable right now.');
+            setIsLoadingBuyers(false);
+            return;
+        }
+
+        try {
+            const response = await fetch(route('farmer.resource-buyer-suggestions'), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({ agri_resource_id: resource.id }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Buyer suggestion request failed.');
+            }
+
+            const result: unknown = await response.json();
+
+            if (!isBuyerSuggestionResponse(result)) {
+                throw new Error('Invalid buyer suggestion response.');
+            }
+
+            setBuyerSuggestions(result);
+        } catch {
+            setBuyerSuggestionError('Nearby processor suggestions are unavailable right now.');
+        } finally {
+            setIsLoadingBuyers(false);
+        }
+    };
 
     const canContinue = () => {
         switch (currentStep) {
@@ -196,6 +371,8 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             onSuccess: () => {
                 reset();
                 setImagePreview(null);
+                setPriceRecommendation(null);
+                requestedResourceId.current = null;
                 setCurrentStep(1);
             },
         });
@@ -208,7 +385,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                     role="status"
                     className="mb-5 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-sm font-semibold text-green-800"
                 >
-                    Your crop listing was posted successfully.
+                    Your surplus resource listing was posted successfully.
                 </div>
             )}
 
@@ -254,12 +431,12 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                     {/* STEP 1 */}
                     {currentStep === 1 && (
                         <StepContainer
-                            icon={Sprout}
-                            title="What crop are you selling?"
-                            description="Choose the crop you currently have available."
+                            icon={Recycle}
+                            title="What surplus resource is available?"
+                            description="Choose the produce, by-product, or reusable farm material you want to list."
                         >
                             <div className="mb-3 flex items-center justify-between gap-3 text-xs font-medium text-gray-500">
-                                <span>{resources.length} crops available</span>
+                                <span>{resources.length} resources available</span>
                                 <span>Tap one to select</span>
                             </div>
 
@@ -274,12 +451,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                             key={resource.id}
                                             type="button"
                                             aria-pressed={selected}
-                                            onClick={() =>
-                                                updateField(
-                                                    'agri_resource_id',
-                                                    resource.id.toString(),
-                                                )
-                                            }
+                                            onClick={() => void selectResource(resource)}
                                             className={`relative flex min-h-24 flex-col items-start justify-between gap-3 rounded-2xl border-2 p-3 text-left transition focus:outline-none focus:ring-4 focus:ring-[#6ab225]/15 sm:min-h-28 sm:p-4 ${
                                                 selected
                                                     ? 'border-[#6ab225] bg-[#6ab225]/10 shadow-sm'
@@ -293,7 +465,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                                         : 'bg-[#03592f]/5 text-[#03592f]'
                                                 }`}
                                             >
-                                                <Sprout size={20} />
+                                                <Recycle size={20} />
                                             </div>
 
                                             {selected && (
@@ -318,7 +490,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                         <StepContainer
                             icon={Package}
                             title="How much do you have?"
-                            description="Enter the amount of crop available for buyers."
+                            description="Enter the amount of surplus resource available to processors."
                         >
                             <div className="mx-auto max-w-md">
                                 <label className="mb-2 block text-sm font-semibold text-gray-700">
@@ -359,13 +531,13 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                     {currentStep === 3 && (
                         <StepContainer
                             icon={Warehouse}
-                            title="Tell us about the harvest"
-                            description="This helps us understand how fresh your crop is."
+                            title="When was it collected?"
+                            description="Use the collection, production, or harvest date that best applies."
                         >
                             <div className="space-y-7">
                                 <div>
                                     <label className="mb-2 block text-sm font-semibold text-gray-700">
-                                        When was it harvested?
+                                        Collection or harvest date
                                     </label>
 
                                     <input
@@ -388,7 +560,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
 
                                 <div>
                                     <label className="mb-3 block text-sm font-semibold text-gray-700">
-                                        How is the crop being stored?
+                                        How is the resource being stored?
                                     </label>
 
                                     <div className="space-y-3">
@@ -453,14 +625,14 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                         <StepContainer
                             icon={Camera}
                             title="Add a photo"
-                            description="A clear photo helps buyers know what your crop looks like."
+                            description="A clear photo helps processors assess the available material."
                         >
                             <label className="block cursor-pointer">
                                 {imagePreview ? (
                                     <div className="group relative overflow-hidden rounded-2xl">
                                         <img
                                             src={imagePreview}
-                                            alt="Crop preview"
+                                            alt="Resource preview"
                                             className="h-72 w-full object-cover"
                                         />
 
@@ -481,8 +653,8 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                         </p>
 
                                         <p className="mt-1 max-w-xs text-sm text-gray-500">
-                                            Make sure the crop is clearly
-                                            visible and there is enough light.
+                                            Make sure the resource is clearly
+                                            visible with enough light.
                                         </p>
 
                                         <span className="mt-5 rounded-xl bg-[#03592f] px-5 py-3 text-sm font-semibold text-white">
@@ -510,10 +682,49 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                     {currentStep === 5 && (
                         <StepContainer
                             icon={PhilippinePeso}
-                            title="How much are you selling it for?"
-                            description="Enter your price per kilogram, then review your listing."
+                            title="What is your offer price?"
+                            description="Enter the price per kilogram, then review the resource listing."
                         >
                             <div className="space-y-7">
+                                {isLoadingPrice && (
+                                    <div
+                                        role="status"
+                                        className="animate-pulse rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-xl bg-emerald-200" />
+                                            <div className="flex-1 space-y-2">
+                                                <div className="h-3 w-32 rounded bg-emerald-200" />
+                                                <div className="h-4 w-52 max-w-full rounded bg-emerald-100" />
+                                            </div>
+                                        </div>
+                                        <p className="mt-4 text-sm font-medium text-emerald-800">
+                                            Matching prices with your farm location…
+                                        </p>
+                                    </div>
+                                )}
+
+                                {priceRecommendation && (
+                                    <PriceRecommendationCard
+                                        recommendation={priceRecommendation}
+                                        onUsePrice={(price) =>
+                                            updateField(
+                                                'price',
+                                                price.toString(),
+                                            )
+                                        }
+                                    />
+                                )}
+
+                                {priceRecommendationError && (
+                                    <div
+                                        role="alert"
+                                        className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
+                                    >
+                                        {priceRecommendationError}
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="mb-2 block text-sm font-semibold text-gray-700">
                                         Price per kilogram
@@ -558,7 +769,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
 
                                     <div className="divide-y divide-gray-200">
                                         <ReviewItem
-                                            label="Crop"
+                                            label="Resource"
                                             value={
                                                 selectedResource?.name ?? '—'
                                             }
@@ -570,7 +781,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                         />
 
                                         <ReviewItem
-                                            label="Harvested"
+                                            label="Collected / harvested"
                                             value={
                                                 form.harvested_at || '—'
                                             }
@@ -636,12 +847,131 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
 
                                 {processing
                                     ? 'Posting...'
-                                    : 'Post Crop Listing'}
+                                    : 'Post Resource Listing'}
                             </button>
                         )}
                     </div>
                 )}
             </form>
+
+            {isBuyerModalOpen && selectedResource ? (
+                <div
+                    className="fixed inset-0 z-[70] flex items-end justify-center bg-emerald-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-5"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="buyer-suggestions-title"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget) {
+                            setIsBuyerModalOpen(false);
+                        }
+                    }}
+                >
+                    <section className="max-h-[88vh] w-full max-w-2xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+                        <header className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-5 sm:px-6">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#6ab225]">
+                                    Potential target buyers
+                                </p>
+                                <h2 id="buyer-suggestions-title" className="mt-1 text-xl font-extrabold text-gray-900">
+                                    Processors for {selectedResource.name}
+                                </h2>
+                                <p className="mt-1 text-sm leading-5 text-gray-500">
+                                    Ranked by past purchases of this resource, then by distance from your farm.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                aria-label="Close processor suggestions"
+                                onClick={() => setIsBuyerModalOpen(false)}
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 transition hover:bg-gray-200 focus:outline-none focus:ring-4 focus:ring-emerald-600/15"
+                            >
+                                <X size={19} />
+                            </button>
+                        </header>
+
+                        <div className="max-h-[56vh] overflow-y-auto px-5 py-4 sm:px-6">
+                            {isLoadingBuyers ? (
+                                <div className="space-y-3" aria-label="Loading nearby processors">
+                                    {[1, 2, 3].map((item) => (
+                                        <div key={item} className="h-28 animate-pulse rounded-2xl bg-gray-100" />
+                                    ))}
+                                </div>
+                            ) : buyerSuggestionError ? (
+                                <div className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+                                    {buyerSuggestionError} Your selected resource is still saved and you can continue.
+                                </div>
+                            ) : buyerSuggestions?.processors.length ? (
+                                <div className="space-y-3">
+                                    <div className="flex items-start gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs leading-5 text-emerald-800">
+                                        <MapPin className="mt-0.5 shrink-0" size={15} />
+                                        Suggestions based on {buyerSuggestions.farmer_location}
+                                    </div>
+                                    {buyerSuggestions.processors.map((processor) => (
+                                        <article key={processor.id} className="rounded-2xl border border-gray-200 p-4 transition hover:border-emerald-300 hover:shadow-sm">
+                                            <div className="flex items-start gap-3">
+                                                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
+                                                    <Building2 size={20} />
+                                                </span>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                                        <div>
+                                                            <h3 className="font-bold text-gray-900">{processor.business_name}</h3>
+                                                            <p className="text-sm text-gray-500">{processor.business_type}</p>
+                                                        </div>
+                                                        {processor.has_bought_resource ? (
+                                                            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
+                                                                Past buyer
+                                                            </span>
+                                                        ) : (
+                                                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-gray-600">
+                                                                Nearby prospect
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-gray-600">
+                                                        <MapPin className="mt-0.5 shrink-0 text-[#6ab225]" size={14} />
+                                                        <span>{processor.complete_address}{processor.distance_km !== null ? ` · ${processor.distance_km} km away` : ''}</span>
+                                                    </p>
+                                                    <p className="mt-1.5 flex items-center gap-2 text-xs font-semibold text-gray-600">
+                                                        <Phone className="shrink-0 text-[#6ab225]" size={14} />
+                                                        {processor.contact_number}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    ))}
+                                    <p className="px-1 text-[11px] leading-5 text-gray-400">
+                                        “Potential buyer” is a suggestion only. Confirm interest, quantity, and price through a transaction message.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="rounded-2xl border border-dashed border-gray-200 px-5 py-10 text-center">
+                                    <Building2 className="mx-auto text-gray-300" size={28} />
+                                    <p className="mt-3 font-bold text-gray-800">No processors found yet</p>
+                                    <p className="mt-1 text-sm text-gray-500">You can still publish this listing so processors can discover it.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <footer className="flex items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:px-6">
+                            <button type="button" onClick={() => setIsBuyerModalOpen(false)} className="rounded-xl px-4 py-2.5 text-sm font-bold text-gray-600 transition hover:bg-gray-200">
+                                Keep browsing
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsBuyerModalOpen(false);
+                                    nextStep();
+                                }}
+                                className="flex items-center gap-2 rounded-xl bg-[#03592f] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#024a27] focus:outline-none focus:ring-4 focus:ring-[#6ab225]/25"
+                            >
+                                Continue with resource
+                                <ArrowRight size={17} />
+                            </button>
+                        </footer>
+                    </section>
+                </div>
+            ) : null}
 
             {currentStep === 1 && selectedResource && (
                 <div className="fixed inset-x-4 bottom-[88px] z-40 mx-auto max-w-sm md:bottom-6">
@@ -652,7 +982,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                     >
                         <span className="min-w-0">
                             <span className="block text-xs font-medium text-emerald-200">
-                                Selected crop
+                                Selected resource
                             </span>
                             <span className="block truncate text-sm font-bold">
                                 {selectedResource.name}
@@ -717,5 +1047,217 @@ function ReviewItem({
                 {value}
             </span>
         </div>
+    );
+}
+
+function PriceRecommendationCard({
+    recommendation,
+    onUsePrice,
+}: {
+    recommendation: PriceRecommendation;
+    onUsePrice: (price: number) => void;
+}): ReactElement {
+    const recommendedPrice = recommendation.recommended_price;
+    const minimumPrice = recommendation.minimum_price;
+    const maximumPrice = recommendation.maximum_price;
+    const hasPrice =
+        recommendedPrice !== null &&
+        minimumPrice !== null &&
+        maximumPrice !== null;
+    const isLocationMatch =
+        recommendation.match_type === 'nearest_location' ||
+        recommendation.match_type === 'location_match';
+
+    return (
+        <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white">
+            <div className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#03592f] text-white shadow-sm">
+                            <Sparkles size={19} />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold text-[#03592f]">
+                                AI market price guide
+                            </p>
+                            <p className="mt-0.5 text-xs text-gray-500">
+                                Matched with verified market prices
+                            </p>
+                        </div>
+                    </div>
+
+                    {hasPrice && (
+                        <span
+                            className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                                isLocationMatch
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-amber-100 text-amber-800'
+                            }`}
+                        >
+                            {isLocationMatch
+                                ? 'Location matched'
+                                : 'Regional fallback'}
+                        </span>
+                    )}
+                </div>
+
+                <div className="mt-4 flex items-start gap-2 rounded-xl bg-white/80 p-3 text-sm text-gray-700 ring-1 ring-emerald-100">
+                    <MapPin
+                        className="mt-0.5 shrink-0 text-[#6ab225]"
+                        size={17}
+                    />
+                    <p className="leading-5">
+                        <span className="font-semibold text-gray-900">
+                            Based on your location:
+                        </span>{' '}
+                        {recommendation.farmer_location}
+                    </p>
+                </div>
+
+                {hasPrice ? (
+                    <>
+                        <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Suggested price
+                                </p>
+                                <p className="mt-1 text-3xl font-extrabold text-[#03592f]">
+                                    ₱{formatPrice(recommendedPrice)}
+                                    <span className="ml-1 text-sm font-semibold text-gray-500">
+                                        / kg
+                                    </span>
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => onUsePrice(recommendedPrice)}
+                                className="rounded-xl bg-[#6ab225] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#5d9e20] focus:outline-none focus:ring-4 focus:ring-[#6ab225]/25"
+                            >
+                                Use suggested price
+                            </button>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
+                                <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500">
+                                    <TrendingUp size={14} />
+                                    Market range
+                                </p>
+                                <p className="mt-1 text-sm font-bold text-gray-800">
+                                    ₱{formatPrice(minimumPrice)}–₱
+                                    {formatPrice(maximumPrice)}
+                                </p>
+                            </div>
+                            <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
+                                <p className="text-xs font-semibold text-gray-500">
+                                    Market average
+                                </p>
+                                <p className="mt-1 text-sm font-bold text-gray-800">
+                                    {recommendation.average_price !== null
+                                        ? `₱${formatPrice(recommendation.average_price)}`
+                                        : 'Unavailable'}
+                                </p>
+                            </div>
+                            <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
+                                <p className="text-xs font-semibold text-gray-500">
+                                    Market basis
+                                </p>
+                                <p className="mt-1 truncate text-sm font-bold text-gray-800">
+                                    {recommendation.market_area ?? 'Available markets'}
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-gray-400">
+                                    {recommendation.market_count} market prices
+                                </p>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <p className="mt-4 text-sm leading-6 text-amber-800">
+                        {recommendation.message}
+                    </p>
+                )}
+
+                {hasPrice && (
+                    <p className="mt-4 text-xs leading-5 text-gray-500">
+                        {recommendation.message} Use this as a guide; you can
+                        still enter your own price.
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function formatPrice(value: number): string {
+    return value.toLocaleString('en-PH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+
+function isPriceRecommendation(value: unknown): value is PriceRecommendation {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        'recommended_price' in value &&
+        (typeof value.recommended_price === 'number' ||
+            value.recommended_price === null) &&
+        'average_price' in value &&
+        (typeof value.average_price === 'number' ||
+            value.average_price === null) &&
+        'minimum_price' in value &&
+        (typeof value.minimum_price === 'number' ||
+            value.minimum_price === null) &&
+        'maximum_price' in value &&
+        (typeof value.maximum_price === 'number' ||
+            value.maximum_price === null) &&
+        'farmer_location' in value &&
+        typeof value.farmer_location === 'string' &&
+        'market_area' in value &&
+        (typeof value.market_area === 'string' || value.market_area === null) &&
+        'market_count' in value &&
+        typeof value.market_count === 'number' &&
+        'match_type' in value &&
+        typeof value.match_type === 'string' &&
+        [
+            'nearest_location',
+            'location_match',
+            'regional_fallback',
+            'no_market_data',
+        ].includes(value.match_type) &&
+        'message' in value &&
+        typeof value.message === 'string'
+    );
+}
+
+function isBuyerSuggestionResponse(value: unknown): value is BuyerSuggestionResponse {
+    if (typeof value !== 'object' || value === null) {
+        return false;
+    }
+
+    const payload = value as Record<string, unknown>;
+
+    return (
+        typeof payload.farmer_location === 'string' &&
+        Array.isArray(payload.processors) &&
+        payload.processors.every((processor: unknown) => {
+            if (typeof processor !== 'object' || processor === null) {
+                return false;
+            }
+
+            const item = processor as Record<string, unknown>;
+
+            return (
+                typeof item.id === 'number' &&
+                typeof item.business_name === 'string' &&
+                typeof item.business_type === 'string' &&
+                typeof item.complete_address === 'string' &&
+                typeof item.contact_number === 'string' &&
+                (typeof item.distance_km === 'number' || item.distance_km === null) &&
+                typeof item.has_bought_resource === 'boolean' &&
+                typeof item.matching_transactions_count === 'number'
+            );
+        })
     );
 }

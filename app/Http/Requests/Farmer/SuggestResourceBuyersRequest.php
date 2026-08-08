@@ -1,13 +1,12 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Farmer;
 
-use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class SendTransactionMessageRequest extends FormRequest
+class SuggestResourceBuyersRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -15,11 +14,8 @@ class SendTransactionMessageRequest extends FormRequest
     public function authorize(): bool
     {
         $user = $this->user();
-        $transaction = Transaction::query()->find($this->integer('transaction_id'));
 
-        return $user instanceof User
-            && $transaction !== null
-            && $transaction->isAccessibleBy($user);
+        return $user instanceof User && $user->role === 'farmer';
     }
 
     /**
@@ -30,8 +26,7 @@ class SendTransactionMessageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'transaction_id' => ['required', 'integer', 'exists:transactions,id'],
-            'message' => ['required', 'string', 'max:5000'],
+            'agri_resource_id' => ['required', 'integer', 'exists:agri_resources,id'],
         ];
     }
 }

@@ -18,7 +18,11 @@ function isTransactionMessage(data: unknown): data is TransactionMessage {
 
     return (
         typeof payload.transaction_id === 'number' &&
-        typeof payload.message === 'string'
+        typeof payload.id === 'number' &&
+        typeof payload.message === 'string' &&
+        typeof payload.sender_id === 'number' &&
+        typeof payload.sender_name === 'string' &&
+        typeof payload.created_at === 'string'
     );
 }
 
@@ -41,8 +45,8 @@ export function useTransactionChannel(
 
         const transactionChannelName = `transaction.${transactionId}`;
         const pingChannelName = `transaction-ping.${transactionId}`;
-        const transactionChannel = echo.channel(transactionChannelName);
-        const pingChannel = echo.channel(pingChannelName);
+        const transactionChannel = echo.private(transactionChannelName);
+        const pingChannel = echo.private(pingChannelName);
 
         const handleMessage = (data: unknown): void => {
             if (isTransactionMessage(data)) {
