@@ -1,5 +1,8 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Lgu\DashboardController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
+
+Route::prefix('lgu')->middleware(['auth', 'role:lgu'])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('lgu.dashboard');
+});
