@@ -1,9 +1,22 @@
-import FarmersDashboardLayout from "@/Layouts/FarmerDashboardLayout";
+import ResourceListingStepper from '@/Components/Farmer/forms/ResourceListingStepper';
+import FarmersDashboardLayout from '@/Layouts/FarmerDashboardLayout';
+import type { ReactElement } from 'react';
 
-import React from 'react'
+type AgriResource = {
+    id: number;
+    name: string;
+};
 
-export default function CreateAgriResourceListing() {
-  return (
-    <FarmersDashboardLayout>CreateAgriResourceListing</FarmersDashboardLayout>
-  )
+type Props = {
+    resources: AgriResource[];
+};
+
+export default function CreateAgriResourceListing({
+    resources,
+}: Props): ReactElement {
+    return (
+        <FarmersDashboardLayout>
+            <ResourceListingStepper resources={resources} />
+        </FarmersDashboardLayout>
+    );
 }
