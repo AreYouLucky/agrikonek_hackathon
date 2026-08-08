@@ -21,9 +21,9 @@ const navigation = [
     },
     {
         label: 'About Us',
-        href: '#about-us',
+        href: route('processors.about-us'),
         icon: Info,
-        match: '#about-us',
+        match: '/processors/about-us',
     },
 ];
 

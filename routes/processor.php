@@ -8,6 +8,7 @@ use Inertia\Inertia;
 Route::prefix('processors')->middleware(['auth', 'role:processor'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('processors.dashboard');
+    Route::get('/about-us', fn () => Inertia::render('Processor/AboutUs'))->name('processors.about-us');
 
     Route::get('/agri-resources/my-demands', [MyDemandController::class, 'index'])->name('processors.agri-resources.my-demands');
     Route::get('/agri-resources/my-demands-get-data', [MyDemandController::class, 'getData'])->name('processors.agri-resources.my-demands.getdata');
