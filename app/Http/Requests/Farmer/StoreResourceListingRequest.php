@@ -49,6 +49,14 @@ class StoreResourceListingRequest extends FormRequest
             ],
             'img' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'price' => ['required', 'numeric', 'gt:0'],
+            'estimated_price' => ['nullable', 'numeric', 'min:0'],
+            'fresh_until' => ['nullable', 'date'],
+            'freshness_status' => [
+                'nullable',
+                'string',
+                Rule::in(['fresh', 'aging', 'near_spoilage', 'spoiled']),
+            ],
+            'ai_analysis_message' => ['nullable', 'string', 'max:1000'],
         ];
     }
 }

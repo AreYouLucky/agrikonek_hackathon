@@ -3,11 +3,9 @@
 namespace App\Http\Controllers\Farmer;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Farmer\RecommendResourcePriceRequest;
 use App\Http\Requests\Farmer\StoreResourceListingRequest;
 use App\Http\Requests\Farmer\SuggestResourceBuyersRequest;
 use App\Models\AgriResource;
-use App\Services\MarketPriceRecommendationService;
 use App\Services\NearbyProcessorSuggestionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -38,24 +36,14 @@ class FarmersController extends Controller
             'preservation_method' => $validated['preservation_method'],
             'img' => $imagePath,
             'price' => $validated['price'],
+            'estimated_price' => $validated['estimated_price'] ?? null,
+            'fresh_until' => $validated['fresh_until'] ?? null,
+            'freshness_status' => $validated['freshness_status'] ?? null,
+            'ai_analysis_message' => $validated['ai_analysis_message'] ?? null,
         ]);
 
         return to_route('create-agri-resource-listing')
             ->with('success', 'Surplus resource listing posted successfully.');
-    }
-
-    public function recommendResourcePrice(
-        RecommendResourcePriceRequest $request,
-        MarketPriceRecommendationService $recommendationService,
-    ): JsonResponse {
-        $resource = AgriResource::query()->findOrFail(
-            $request->integer('agri_resource_id'),
-        );
-        $farmerProfile = $request->user()->farmerProfile()->firstOrFail();
-
-        return response()->json(
-            $recommendationService->recommend($resource, $farmerProfile),
-        );
     }
 
     public function suggestResourceBuyers(

@@ -31,11 +31,6 @@ class AnalyzeCropPriceRequest extends FormRequest
             'harvested_at' => ['required', 'date'],
             'preservation_method' => ['required', 'string', 'max:100'],
             'price' => ['required', 'numeric', 'gt:0'],
-            'farmer_location' => ['nullable', 'string', 'max:500'],
-            'market_area' => ['nullable', 'string', 'max:255'],
-            'market_average' => ['nullable', 'numeric', 'min:0'],
-            'market_minimum' => ['nullable', 'numeric', 'min:0'],
-            'market_maximum' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

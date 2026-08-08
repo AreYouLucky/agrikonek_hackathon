@@ -15,6 +15,10 @@ class ResourceListing extends Model
         'preservation_method',
         'img',
         'price',
+        'estimated_price',
+        'fresh_until',
+        'freshness_status',
+        'ai_analysis_message',
     ];
 
     protected function casts(): array
@@ -23,6 +27,8 @@ class ResourceListing extends Model
             'quantity' => 'float',
             'havested_at' => 'datetime',
             'price' => 'float',
+            'estimated_price' => 'float',
+            'fresh_until' => 'date',
         ];
     }
 

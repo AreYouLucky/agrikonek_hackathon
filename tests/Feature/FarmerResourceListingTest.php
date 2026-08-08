@@ -177,6 +177,10 @@ class FarmerResourceListingTest extends TestCase
             'preservation_method' => 'refrigerated',
             'img' => UploadedFile::fake()->image('rice.jpg'),
             'price' => 45.75,
+            'estimated_price' => 43.50,
+            'fresh_until' => now()->addDays(5)->toDateString(),
+            'freshness_status' => 'fresh',
+            'ai_analysis_message' => 'Price aligns with the verified local market range.',
         ]);
 
         $response->assertRedirect(route('create-agri-resource-listing'));
@@ -188,6 +192,16 @@ class FarmerResourceListingTest extends TestCase
         $this->assertSame(25.5, $listing->quantity);
         $this->assertSame('refrigerated', $listing->preservation_method);
         $this->assertSame(45.75, $listing->price);
+        $this->assertSame(43.5, $listing->estimated_price);
+        $this->assertSame(
+            now()->addDays(5)->toDateString(),
+            $listing->fresh_until->toDateString(),
+        );
+        $this->assertSame('fresh', $listing->freshness_status);
+        $this->assertSame(
+            'Price aligns with the verified local market range.',
+            $listing->ai_analysis_message,
+        );
         Storage::disk('public')->assertExists($listing->img);
     }
 
@@ -202,6 +216,10 @@ class FarmerResourceListingTest extends TestCase
             'preservation_method' => 'unsupported',
             'img' => UploadedFile::fake()->create('crop.txt', 10, 'text/plain'),
             'price' => 0,
+            'estimated_price' => -1,
+            'fresh_until' => 'invalid-date',
+            'freshness_status' => 'unknown',
+            'ai_analysis_message' => str_repeat('a', 1001),
         ]);
 
         $response->assertSessionHasErrors([
@@ -211,6 +229,10 @@ class FarmerResourceListingTest extends TestCase
             'preservation_method',
             'img',
             'price',
+            'estimated_price',
+            'fresh_until',
+            'freshness_status',
+            'ai_analysis_message',
         ]);
         $this->assertDatabaseCount('resource_listings', 0);
     }

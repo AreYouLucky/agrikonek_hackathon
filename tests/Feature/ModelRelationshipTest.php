@@ -44,6 +44,8 @@ class ModelRelationshipTest extends TestCase
     {
         $this->assertSame('float', (new ResourceListing)->getCasts()['quantity']);
         $this->assertSame('datetime', (new ResourceListing)->getCasts()['havested_at']);
+        $this->assertSame('float', (new ResourceListing)->getCasts()['estimated_price']);
+        $this->assertSame('date', (new ResourceListing)->getCasts()['fresh_until']);
         $this->assertSame('float', (new Transaction)->getCasts()['price']);
         $this->assertSame('float', (new MarketPrice)->getCasts()['price']);
         $this->assertSame('boolean', (new Message)->getCasts()['is_img']);

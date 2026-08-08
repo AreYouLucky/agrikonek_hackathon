@@ -1,7 +1,6 @@
 import {
     requestResourceBuyerSuggestions,
     requestResourcePriceAnalysis,
-    requestResourcePriceRecommendation,
 } from '@/services/farmerResourceListing';
 import { useForm } from '@inertiajs/react';
 import {
@@ -19,7 +18,6 @@ import {
     Phone,
     Sparkles,
     Sprout,
-    TrendingUp,
     Warehouse,
     X,
 } from 'lucide-react';
@@ -27,7 +25,6 @@ import {
     type FormEvent,
     type ReactElement,
     useEffect,
-    useRef,
     useState,
 } from 'react';
 
@@ -47,22 +44,10 @@ type FormData = {
     preservation_method: string;
     img: File | null;
     price: string;
-};
-
-type PriceRecommendation = {
-    recommended_price: number | null;
-    average_price: number | null;
-    minimum_price: number | null;
-    maximum_price: number | null;
-    farmer_location: string;
-    market_area: string | null;
-    market_count: number;
-    match_type:
-        | 'nearest_location'
-        | 'location_match'
-        | 'regional_fallback'
-        | 'no_market_data';
-    message: string;
+    estimated_price: string;
+    fresh_until: string;
+    freshness_status: string;
+    ai_analysis_message: string;
 };
 
 type ResourcePriceAnalysis = {
@@ -157,19 +142,12 @@ const preservationMethods = [
 export default function ResourceListingStepper({ resources }: Props): ReactElement {
     const [currentStep, setCurrentStep] = useState(1);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [priceRecommendation, setPriceRecommendation] =
-        useState<PriceRecommendation | null>(null);
-    const [isLoadingPrice, setIsLoadingPrice] = useState(false);
-    const [priceRecommendationError, setPriceRecommendationError] = useState<
-        string | null
-    >(null);
     const [priceAnalysis, setPriceAnalysis] =
         useState<ResourcePriceAnalysis | null>(null);
     const [isAnalyzingPrice, setIsAnalyzingPrice] = useState(false);
     const [priceAnalysisError, setPriceAnalysisError] = useState<string | null>(
         null,
     );
-    const requestedResourceId = useRef<number | null>(null);
     const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
     const [buyerSuggestions, setBuyerSuggestions] =
         useState<BuyerSuggestionResponse | null>(null);
@@ -191,6 +169,10 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
         preservation_method: '',
         img: null,
         price: '',
+        estimated_price: '',
+        fresh_until: '',
+        freshness_status: '',
+        ai_analysis_message: '',
     });
 
     const selectedResource = resources.find(
@@ -205,54 +187,19 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
         };
     }, [imagePreview]);
 
-    useEffect(() => {
-        if (currentStep !== 5 || !selectedResource) {
-            return;
-        }
-
-        if (requestedResourceId.current === selectedResource.id) {
-            return;
-        }
-
-        const abortController = new AbortController();
-        requestedResourceId.current = selectedResource.id;
-        setPriceRecommendation(null);
-        setPriceRecommendationError(null);
-        setIsLoadingPrice(true);
-
-        void requestResourcePriceRecommendation(
-            selectedResource.id,
-            abortController.signal,
-        )
-            .then((result: unknown) => {
-                if (!isPriceRecommendation(result)) {
-                    throw new Error('Invalid price recommendation response.');
-                }
-
-                setPriceRecommendation(result);
-            })
-            .catch((error: unknown) => {
-                if (abortController.signal.aborted) {
-                    requestedResourceId.current = null;
-                    return;
-                }
-
-                setPriceRecommendationError(
-                    'The AI market guide is temporarily unavailable. You can still enter a price manually.',
-                );
-            })
-            .finally(() => {
-                if (!abortController.signal.aborted) {
-                    setIsLoadingPrice(false);
-                }
-            });
-
-        return () => abortController.abort();
-    }, [currentStep, selectedResource]);
-
     const updateField = setData;
 
+    const clearPriceAnalysis = (): void => {
+        setPriceAnalysis(null);
+        setPriceAnalysisError(null);
+        updateField('estimated_price', '');
+        updateField('fresh_until', '');
+        updateField('freshness_status', '');
+        updateField('ai_analysis_message', '');
+    };
+
     const selectResource = async (resource: AgriResource): Promise<void> => {
+        clearPriceAnalysis();
         updateField('agri_resource_id', resource.id.toString());
         setIsBuyerModalOpen(true);
         setBuyerSuggestions(null);
@@ -287,8 +234,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
         }
 
         setIsAnalyzingPrice(true);
-        setPriceAnalysis(null);
-        setPriceAnalysisError(null);
+        clearPriceAnalysis();
 
         try {
             const result: unknown = await requestResourcePriceAnalysis({
@@ -309,6 +255,16 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
             }
 
             setPriceAnalysis(result);
+            updateField(
+                'estimated_price',
+                result.estimated_price?.toString() ?? '',
+            );
+            updateField('fresh_until', result.fresh_until ?? '');
+            updateField(
+                'freshness_status',
+                result.freshness_status ?? '',
+            );
+            updateField('ai_analysis_message', result.message ?? '');
         } catch {
             setPriceAnalysisError(
                 'The AI price analysis is temporarily unavailable. Your listing price is still saved.',
@@ -521,12 +477,13 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                         min="0"
                                         step="0.01"
                                         value={form.quantity}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
                                             updateField(
                                                 'quantity',
                                                 event.target.value,
-                                            )
-                                        }
+                                            );
+                                            clearPriceAnalysis();
+                                        }}
                                         placeholder="Example: 50"
                                         className="w-full rounded-2xl border-2 border-gray-200 px-5 py-4 pr-16 text-lg font-semibold outline-none transition focus:border-[#6ab225] focus:ring-4 focus:ring-[#6ab225]/10"
                                         autoFocus
@@ -566,12 +523,13 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                                 .toISOString()
                                                 .split('T')[0]
                                         }
-                                        onChange={(event) =>
+                                        onChange={(event) => {
                                             updateField(
                                                 'harvested_at',
                                                 event.target.value,
-                                            )
-                                        }
+                                            );
+                                            clearPriceAnalysis();
+                                        }}
                                         className="w-full rounded-2xl border-2 border-gray-200 px-4 py-4 outline-none transition focus:border-[#6ab225] focus:ring-4 focus:ring-[#6ab225]/10"
                                     />
                                 </div>
@@ -591,12 +549,13 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                                 <button
                                                     key={method.value}
                                                     type="button"
-                                                    onClick={() =>
+                                                    onClick={() => {
                                                         updateField(
                                                             'preservation_method',
                                                             method.value,
-                                                        )
-                                                    }
+                                                        );
+                                                        clearPriceAnalysis();
+                                                    }}
                                                     className={`flex w-full items-center gap-4 rounded-2xl border-2 p-4 text-left transition ${
                                                         selected
                                                             ? 'border-[#6ab225] bg-[#6ab225]/5'
@@ -730,8 +689,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                                 'price',
                                                 price.toString(),
                                             );
-                                            setPriceAnalysis(null);
-                                            setPriceAnalysisError(null);
+                                            clearPriceAnalysis();
                                         }}
                                     />
                                 )}
@@ -765,8 +723,7 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                                     'price',
                                                     event.target.value,
                                                 );
-                                                setPriceAnalysis(null);
-                                                setPriceAnalysisError(null);
+                                                clearPriceAnalysis();
                                             }}
                                             placeholder="0.00"
                                             className="w-full rounded-2xl border-2 border-gray-200 py-4 pl-11 pr-20 text-xl font-bold outline-none transition focus:border-[#6ab225] focus:ring-4 focus:ring-[#6ab225]/10"
@@ -797,10 +754,12 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                     <PriceAnalysisCard
                                         analysis={priceAnalysis}
                                         currentPrice={Number(form.price)}
-                                        onUsePrice={(price) => {
-                                            updateField('price', price.toString());
-                                            setPriceAnalysis(null);
-                                        }}
+                                        onUsePrice={(price) =>
+                                            updateField(
+                                                'price',
+                                                price.toString(),
+                                            )
+                                        }
                                     />
                                 ) : null}
 
@@ -865,6 +824,40 @@ export default function ResourceListingStepper({ resources }: Props): ReactEleme
                                                     : '—'
                                             }
                                         />
+
+                                        {form.freshness_status ? (
+                                            <>
+                                                <ReviewItem
+                                                    label="AI estimated price"
+                                                    value={
+                                                        form.estimated_price
+                                                            ? `₱${formatPrice(Number(form.estimated_price))} / kg`
+                                                            : 'Unavailable'
+                                                    }
+                                                />
+                                                <ReviewItem
+                                                    label="Fresh until"
+                                                    value={
+                                                        form.fresh_until ||
+                                                        'Not available'
+                                                    }
+                                                />
+                                                <ReviewItem
+                                                    label="Freshness status"
+                                                    value={form.freshness_status.replaceAll(
+                                                        '_',
+                                                        ' ',
+                                                    )}
+                                                />
+                                                <ReviewItem
+                                                    label="AI message"
+                                                    value={
+                                                        form.ai_analysis_message ||
+                                                        'No additional message'
+                                                    }
+                                                />
+                                            </>
+                                        ) : null}
                                     </div>
                                 </div>
                             </div>
@@ -1145,16 +1138,16 @@ function PriceAnalysisCard({
                 </span>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl bg-white p-4 ring-1 ring-sky-100">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        AI estimated price
-                    </p>
-                    <p className="mt-1 text-2xl font-extrabold text-sky-800">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Estimated price
+                    </dt>
+                    <dd className="mt-1 text-2xl font-extrabold text-sky-800">
                         {estimatedPrice === null
                             ? 'Unavailable'
                             : `₱${formatPrice(estimatedPrice)} / kg`}
-                    </p>
+                    </dd>
                     {priceDifference !== null ? (
                         <p className="mt-1 text-xs text-gray-500">
                             Your price is{' '}
@@ -1167,10 +1160,10 @@ function PriceAnalysisCard({
                 </div>
 
                 <div className="rounded-xl bg-white p-4 ring-1 ring-sky-100">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Expected usable until
-                    </p>
-                    <p className="mt-1 text-base font-bold text-gray-800">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Fresh until
+                    </dt>
+                    <dd className="mt-1 text-base font-bold text-gray-800">
                         {analysis.fresh_until
                             ? new Date(`${analysis.fresh_until}T00:00:00`).toLocaleDateString(
                                   'en-PH',
@@ -1181,18 +1174,32 @@ function PriceAnalysisCard({
                                   },
                               )
                             : 'Not available'}
-                    </p>
-                    <p className="mt-1 text-xs capitalize text-gray-500">
-                        Condition: {statusLabel}
-                    </p>
+                    </dd>
+                    {analysis.fresh_until ? (
+                        <p className="mt-1 text-xs text-gray-500">
+                            {analysis.fresh_until}
+                        </p>
+                    ) : null}
                 </div>
-            </div>
 
-            {analysis.message ? (
-                <p className="mt-4 text-sm leading-6 text-gray-700">
-                    {analysis.message}
-                </p>
-            ) : null}
+                <div className="rounded-xl bg-white p-4 ring-1 ring-sky-100">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Freshness status
+                    </dt>
+                    <dd className="mt-1 text-base font-bold capitalize text-gray-800">
+                        {statusLabel}
+                    </dd>
+                </div>
+
+                <div className="rounded-xl bg-white p-4 ring-1 ring-sky-100">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Message
+                    </dt>
+                    <dd className="mt-1 text-sm leading-6 text-gray-700">
+                        {analysis.message || 'No additional AI message.'}
+                    </dd>
+                </div>
+            </dl>
 
             {estimatedPrice !== null &&
             Math.abs(currentPrice - estimatedPrice) >= 0.01 ? (

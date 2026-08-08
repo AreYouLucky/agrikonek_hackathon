@@ -10,8 +10,6 @@ Route::middleware(['auth', 'role:farmer'])->group(function () {
         ->name('create-agri-resource-listing');
     Route::post('/resource-listings', [FarmersController::class, 'storeResourceListing'])
         ->name('farmer.resource-listings.store');
-    Route::post('/farmer/resource-price-recommendation', [FarmersController::class, 'recommendResourcePrice'])
-        ->name('farmer.resource-price-recommendation');
     Route::post('/farmer/resource-buyer-suggestions', [FarmersController::class, 'suggestResourceBuyers'])
         ->name('farmer.resource-buyer-suggestions');
     Route::get('/farmer/profile', [FarmersProfileController::class, 'index'])
